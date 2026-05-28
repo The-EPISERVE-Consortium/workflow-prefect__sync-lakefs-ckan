@@ -36,8 +36,9 @@ def sync_run(run_id: str, lakefs_run_repo: str) -> None:
         run_id        = run_id,
         git_commit    = metadata.get("git_commit",    ""),
         docker_tag    = metadata.get("docker_tag",    ""),
-        run_timestamp = metadata.get("run_timestamp", ""),
-        status        = metadata.get("status",        ""),
+        run_timestamp    = metadata.get("run_timestamp",    ""),
+        status           = metadata.get("status",           ""),
+        computation_time = metadata.get("computation_time", ""),
         input_files   = input_files,
         output_files  = output_files,
     )

@@ -101,6 +101,7 @@ def create_model_run(
     docker_tag: str,
     run_timestamp: str,
     status: str,
+    computation_time: str,
     input_files: list,
     output_files: list,
 ) -> dict:
@@ -131,8 +132,9 @@ def create_model_run(
             {"key": "model",         "value": model_name},
             {"key": "git_commit",    "value": git_commit},
             {"key": "docker_tag",    "value": docker_tag},
-            {"key": "run_timestamp", "value": run_timestamp},
-            {"key": "status",        "value": status},
+            {"key": "run_timestamp",   "value": run_timestamp},
+            {"key": "status",          "value": status},
+            {"key": "computation_time","value": computation_time},
         ],
     })
 

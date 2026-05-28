@@ -117,8 +117,9 @@ class TestCreateModelRun:
                 run_id        = "run-2026-001",
                 git_commit    = "a3f9c12",
                 docker_tag    = "2.1.0",
-                run_timestamp = "2026-05-15T11:00:00Z",
-                status        = "success",
+                run_timestamp    = "2026-05-15T11:00:00Z",
+                status           = "success",
+                computation_time = "",
                 input_files   = input_files,
                 output_files  = output_files,
             )
@@ -144,8 +145,9 @@ class TestCreateModelRun:
                 run_id        = "run-multi",
                 git_commit    = "abc",
                 docker_tag    = "1.0",
-                run_timestamp = "2026-05-15T11:00:00Z",
-                status        = "success",
+                run_timestamp    = "2026-05-15T11:00:00Z",
+                status           = "success",
+                computation_time = "",
                 input_files   = [
                     "lakefs://model-runs/main/run-multi/input/a.yaml",
                     "lakefs://model-runs/main/run-multi/input/b.yaml",
@@ -203,12 +205,13 @@ class TestSyncRun:
             sync_run("run-001", "model-runs")
 
         mock_create.assert_called_once_with(
-            model_name    = "ct-seg",
-            run_id        = "run-001",
-            git_commit    = "a3f9c12",
-            docker_tag    = "2.1.0",
-            run_timestamp = "2026-05-15T11:00:00Z",
-            status        = "success",
-            input_files   = input_files,
-            output_files  = output_files,
+            model_name       = "ct-seg",
+            run_id           = "run-001",
+            git_commit       = "a3f9c12",
+            docker_tag       = "2.1.0",
+            run_timestamp    = "2026-05-15T11:00:00Z",
+            status           = "success",
+            computation_time = "",
+            input_files      = input_files,
+            output_files     = output_files,
         )

@@ -32,6 +32,7 @@ for run_id in list_runs(repo):
         model_name=meta.get('model_name', ''), run_id=run_id,
         git_commit=meta.get('git_commit', ''), docker_tag=meta.get('docker_tag', ''),
         run_timestamp=meta.get('run_timestamp', ''), status=meta.get('status', ''),
+        computation_time=meta.get('computation_time', ''),
         input_files=list_run_files(run_id, 'input', repo),
         output_files=list_run_files(run_id, 'output', repo),
     )

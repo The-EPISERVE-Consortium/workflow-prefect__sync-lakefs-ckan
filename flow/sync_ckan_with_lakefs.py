@@ -13,36 +13,39 @@ from flow.tools.ckan_tools import _ckan_run_exists, create_model_run
 from flow.tools.lakefs_tools import get_run_metadata, list_run_files, list_runs
 
 
-@task
-def sync_run(run_id: str, lakefs_run_repo: str) -> None:
-    logger = get_run_logger()
-
+def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print) -> None:
     if _ckan_run_exists(run_id):
-        logger.info(f"Run {run_id} already in CKAN, skipping.")
+        log(f"{run_id}: already in CKAN, skipping.")
         return
 
     try:
         metadata = get_run_metadata(run_id, lakefs_run_repo)
     except ObjectNotFoundException:
-        logger.warning(f"Run {run_id} has no metadata.json, using empty defaults.")
+        log(f"{run_id}: no metadata.json, using empty defaults.")
         metadata = {}
 
-    logger.info(f"Syncing run {run_id} to CKAN")
-    input_files  = list_run_files(run_id, "input", lakefs_run_repo)
+    log(f"{run_id}: syncing...")
+    input_files  = list_run_files(run_id, "input",  lakefs_run_repo)
     output_files = list_run_files(run_id, "output", lakefs_run_repo)
 
     create_model_run(
-        model_name    = metadata.get("model_name",    ""),
-        run_id        = run_id,
-        git_commit    = metadata.get("git_commit",    ""),
-        docker_tag    = metadata.get("docker_tag",    ""),
+        model_name       = metadata.get("model_name",       ""),
+        run_id           = run_id,
+        git_commit       = metadata.get("git_commit",       ""),
+        docker_tag       = metadata.get("docker_tag",       ""),
         run_timestamp    = metadata.get("run_timestamp",    ""),
         status           = metadata.get("status",           ""),
         computation_time = metadata.get("computation_time", ""),
-        input_files   = input_files,
-        output_files  = output_files,
+        input_files      = input_files,
+        output_files     = output_files,
     )
-    logger.info(f"Run {run_id} synced to CKAN successfully")
+    log(f"{run_id}: done.")
+
+
+@task
+def sync_run(run_id: str, lakefs_run_repo: str) -> None:
+    logger = get_run_logger()
+    _do_sync_run(run_id, lakefs_run_repo, log=logger.info)
 
 
 @flow

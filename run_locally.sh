@@ -13,28 +13,10 @@ export LAKEFS_HOST=https://lake-episerve.zib.de/
 source .venv/bin/activate
 
 python -c "
-from lakefs.exceptions import ObjectNotFoundException
-from flow.tools.lakefs_tools import list_runs, get_run_metadata, list_run_files
-from flow.tools.ckan_tools import _ckan_run_exists, create_model_run
+from flow.tools.lakefs_tools import list_runs
+from flow.sync_ckan_with_lakefs import _do_sync_run
 
 repo = 'model-runs'
 for run_id in list_runs(repo):
-    if _ckan_run_exists(run_id):
-        print(f'{run_id}: already in CKAN')
-        continue
-    try:
-        meta = get_run_metadata(run_id, repo)
-    except ObjectNotFoundException:
-        print(f'{run_id}: no metadata.json, using empty defaults')
-        meta = {}
-    print(f'{run_id}: syncing...')
-    create_model_run(
-        model_name=meta.get('model_name', ''), run_id=run_id,
-        git_commit=meta.get('git_commit', ''), docker_tag=meta.get('docker_tag', ''),
-        run_timestamp=meta.get('run_timestamp', ''), status=meta.get('status', ''),
-        computation_time=meta.get('computation_time', ''),
-        input_files=list_run_files(run_id, 'input', repo),
-        output_files=list_run_files(run_id, 'output', repo),
-    )
-    print(f'{run_id}: done')
+    _do_sync_run(run_id, repo)
 "

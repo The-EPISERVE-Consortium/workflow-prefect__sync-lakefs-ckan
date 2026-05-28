@@ -8,8 +8,8 @@ and links all files from input/ and output/ as lakeFS URIs.
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from ckan_tools import _ckan_run_exists, create_model_run
-from lakefs_tools import get_run_metadata, list_run_files, list_runs
+from flow.tools.ckan_tools import _ckan_run_exists, create_model_run
+from flow.tools.lakefs_tools import get_run_metadata, list_run_files, list_runs
 
 
 @task

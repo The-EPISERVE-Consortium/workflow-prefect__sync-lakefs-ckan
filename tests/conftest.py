@@ -1,9 +1,9 @@
 import os
 import sys
 
-# Set required env vars before flows/ is imported (module-level reads)
+# Set required env vars before flow/ is imported (module-level reads)
 os.environ.setdefault("CKAN_HOST",   "http://test-ckan")
 os.environ.setdefault("LAKEFS_HOST", "http://test-lakefs")
 
-# Make `flows/` importable without installing the package
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "flows"))
+# Ensure project root is in sys.path so `flow.*` imports resolve
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

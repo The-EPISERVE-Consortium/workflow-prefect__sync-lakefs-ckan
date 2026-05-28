@@ -5,13 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import sync_ckan_with_lakefs as m
-from ckan_tools import (
+import flow.sync_ckan_with_lakefs as m
+from flow.tools.ckan_tools import (
     _ckan_run_exists,
     create_model,
     create_model_run,
 )
-from sync_ckan_with_lakefs import sync_run
+from flow.sync_ckan_with_lakefs import sync_run
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

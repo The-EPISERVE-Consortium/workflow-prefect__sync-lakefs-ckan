@@ -184,7 +184,7 @@ class TestSyncRun:
     def test_skips_run_when_already_in_ckan(self):
         with patch.object(m, "_ckan_run_exists", return_value=True) as mock_exists, \
              patch.object(m, "create_model_run") as mock_create:
-            sync_run("run-2026-001")
+            sync_run("run-2026-001", "model-runs")
 
         mock_exists.assert_called_once_with("run-2026-001")
         mock_create.assert_not_called()
@@ -206,7 +206,7 @@ class TestSyncRun:
              patch.object(m, "_get_run_metadata", return_value=metadata), \
              patch.object(m, "_list_run_files", side_effect=[input_files, output_files]), \
              patch.object(m, "create_model_run") as mock_create:
-            sync_run("run-001")
+            sync_run("run-001", "model-runs")
 
         mock_create.assert_called_once_with(
             model_name    = "ct-seg",

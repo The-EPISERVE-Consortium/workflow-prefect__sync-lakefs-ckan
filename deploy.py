@@ -30,4 +30,7 @@ if __name__ == "__main__":
             "image": DOCKER_IMAGE,
             "image_pull_policy": "Always",
         },
+        parameters={
+            "lakefs_run_repo": os.getenv("LAKEFS_RUN_REPO", "model-runs"),
+        },
     )

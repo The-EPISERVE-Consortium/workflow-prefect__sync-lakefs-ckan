@@ -15,9 +15,8 @@ from prefect.logging import get_run_logger
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-CKAN_URL        = os.environ["CKAN_HOST"]
-LAKEFS_RUN_REPO = "model-runs"
-LAKEFS_BRANCH   = "main"
+CKAN_URL      = os.environ["CKAN_HOST"]
+LAKEFS_BRANCH = "main"
 
 
 # ── CKAN helpers ───────────────────────────────────────────────────────────────
@@ -177,13 +176,13 @@ def _lakefs_client() -> lakefs.client.Client:
     )
 
 
-def _list_lakefs_runs() -> list:
+def _list_lakefs_runs(lakefs_run_repo: str) -> list:
     """
-    List all top-level run folders in model-runs/main.
+    List all top-level run folders in <lakefs_run_repo>/main.
     Returns a list of run_id strings (bare files at root are skipped).
     """
     client = _lakefs_client()
-    repo   = lakefs.Repository(LAKEFS_RUN_REPO, client=client)
+    repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     return [
         entry.path.rstrip("/")
@@ -192,24 +191,24 @@ def _list_lakefs_runs() -> list:
     ]
 
 
-def _list_run_files(run_id: str, subdir: str) -> list:
+def _list_run_files(run_id: str, subdir: str, lakefs_run_repo: str) -> list:
     """
     List all objects under <run_id>/<subdir>/ and return full lakeFS URIs.
     """
     client = _lakefs_client()
-    repo   = lakefs.Repository(LAKEFS_RUN_REPO, client=client)
+    repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     prefix = f"{run_id}/{subdir}/"
     return [
-        f"lakefs://{LAKEFS_RUN_REPO}/{LAKEFS_BRANCH}/{entry.path}"
+        f"lakefs://{lakefs_run_repo}/{LAKEFS_BRANCH}/{entry.path}"
         for entry in branch.objects.list(prefix=prefix)
     ]
 
 
-def _get_run_metadata(run_id: str) -> dict:
+def _get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     """Read and return the parsed metadata.json for a given run."""
     client = _lakefs_client()
-    repo   = lakefs.Repository(LAKEFS_RUN_REPO, client=client)
+    repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     obj    = branch.object(f"{run_id}/metadata.json")
     with obj.reader() as f:
@@ -230,7 +229,7 @@ def _ckan_run_exists(run_id: str) -> bool:
 # ── Prefect tasks & flow ───────────────────────────────────────────────────────
 
 @task
-def sync_run(run_id: str) -> None:
+def sync_run(run_id: str, lakefs_run_repo: str) -> None:
     logger = get_run_logger()
 
     if _ckan_run_exists(run_id):
@@ -238,9 +237,9 @@ def sync_run(run_id: str) -> None:
         return
 
     logger.info(f"Syncing run {run_id} to CKAN")
-    metadata     = _get_run_metadata(run_id)
-    input_files  = _list_run_files(run_id, "input")
-    output_files = _list_run_files(run_id, "output")
+    metadata     = _get_run_metadata(run_id, lakefs_run_repo)
+    input_files  = _list_run_files(run_id, "input", lakefs_run_repo)
+    output_files = _list_run_files(run_id, "output", lakefs_run_repo)
 
     create_model_run(
         model_name    = metadata["model_name"],
@@ -258,14 +257,14 @@ def sync_run(run_id: str) -> None:
 
 
 @flow
-def sync_ckan_with_lakefs() -> None:
+def sync_ckan_with_lakefs(lakefs_run_repo: str = "model-runs") -> None:
     """
     Scan the lakeFS model-runs repository and register any new runs in CKAN.
     Intended to run on a schedule as a Prefect deployment.
     """
     logger  = get_run_logger()
-    run_ids = _list_lakefs_runs()
+    run_ids = _list_lakefs_runs(lakefs_run_repo)
     logger.info(f"Found {len(run_ids)} runs in lakeFS")
-    futures = [sync_run.submit(run_id) for run_id in run_ids]
+    futures = [sync_run.submit(run_id, lakefs_run_repo) for run_id in run_ids]
     for future in futures:
         future.result()

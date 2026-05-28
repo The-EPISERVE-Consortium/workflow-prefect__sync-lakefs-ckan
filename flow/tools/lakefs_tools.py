@@ -2,10 +2,30 @@
 
 import json
 import os
+from urllib.parse import quote
 
 import lakefs
 
 LAKEFS_BRANCH = "main"
+
+
+def lakefs_uri_to_http(uri: str) -> str:
+    """
+    Convert a lakefs:// URI to the lakeFS HTTP API object URL.
+
+    lakefs://model-runs/main/run-id/input/file.json
+    → https://<LAKEFS_HOST>/api/v1/repositories/model-runs/refs/main/objects
+      ?path=run-id%2Finput%2Ffile.json&presign=false
+    """
+    # strip scheme
+    without_scheme = uri[len("lakefs://"):]
+    repo, branch, *parts = without_scheme.split("/")
+    path = "/".join(parts)
+    host = os.environ["LAKEFS_HOST"].rstrip("/")
+    return (
+        f"{host}/api/v1/repositories/{repo}/refs/{branch}/objects"
+        f"?path={quote(path, safe='')}&presign=false"
+    )
 
 
 def _lakefs_client() -> lakefs.client.Client:

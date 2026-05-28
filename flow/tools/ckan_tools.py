@@ -4,6 +4,8 @@ import os
 
 import requests
 
+from flow.tools.lakefs_tools import lakefs_uri_to_http
+
 CKAN_URL = os.environ["CKAN_HOST"]
 
 
@@ -143,7 +145,8 @@ def create_model_run(
         _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
-            "url":         uri,
+            "url":         lakefs_uri_to_http(uri),
+            "lakefs_uri":  uri,
             "format":      filename.split(".")[-1].upper(),
             "description": "Input file",
         })
@@ -153,7 +156,8 @@ def create_model_run(
         _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
-            "url":         uri,
+            "url":         lakefs_uri_to_http(uri),
+            "lakefs_uri":  uri,
             "format":      filename.split(".")[-1].upper(),
             "description": "Output file",
         })

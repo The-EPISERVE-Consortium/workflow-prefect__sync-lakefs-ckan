@@ -30,25 +30,3 @@ jobs:
             ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:${{ github.sha }}
             ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Deploy to Prefect
-        run: python deploy.py
-        env:
-          PREFECT_API_URL:    ${{ secrets.PREFECT_API_URL }}
-          PREFECT_API_KEY:    ${{ secrets.PREFECT_API_KEY }}
-          CKAN_API_TOKEN:     ${{ secrets.CKAN_API_TOKEN }}
-          LAKEFS_ACCESS_KEY:  ${{ secrets.LAKEFS_ACCESS_KEY }}
-          LAKEFS_SECRET_KEY:  ${{ secrets.LAKEFS_SECRET_KEY }}

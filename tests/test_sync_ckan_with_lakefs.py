@@ -119,8 +119,6 @@ class TestCreateModelRun:
                 docker_tag    = "2.1.0",
                 run_timestamp = "2026-05-15T11:00:00Z",
                 status        = "success",
-                domain        = "imaging",
-                modality      = "ct-scan",
                 input_files   = input_files,
                 output_files  = output_files,
             )
@@ -148,8 +146,6 @@ class TestCreateModelRun:
                 docker_tag    = "1.0",
                 run_timestamp = "2026-05-15T11:00:00Z",
                 status        = "success",
-                domain        = "imaging",
-                modality      = "ct-scan",
                 input_files   = [
                     "lakefs://model-runs/main/run-multi/input/a.yaml",
                     "lakefs://model-runs/main/run-multi/input/b.yaml",
@@ -196,8 +192,6 @@ class TestSyncRun:
             "docker_tag":    "2.1.0",
             "run_timestamp": "2026-05-15T11:00:00Z",
             "status":        "success",
-            "domain":        "imaging",
-            "modality":      "ct-scan",
         }
         input_files  = ["lakefs://model-runs/main/run-001/input/config.yaml"]
         output_files = ["lakefs://model-runs/main/run-001/output/result.nii"]
@@ -215,8 +209,6 @@ class TestSyncRun:
             docker_tag    = "2.1.0",
             run_timestamp = "2026-05-15T11:00:00Z",
             status        = "success",
-            domain        = "imaging",
-            modality      = "ct-scan",
             input_files   = input_files,
             output_files  = output_files,
         )

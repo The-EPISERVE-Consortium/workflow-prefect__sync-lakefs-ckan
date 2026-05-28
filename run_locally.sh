@@ -26,16 +26,12 @@ for run_id in list_runs(repo):
         meta = get_run_metadata(run_id, repo)
     except ObjectNotFoundException:
         print(f'{run_id}: no metadata.json, using empty defaults')
-        meta = {
-            'model_name': '', 'git_commit': '', 'docker_tag': '',
-            'run_timestamp': '', 'status': '', 'domain': '', 'modality': '',
-        }
+        meta = {}
     print(f'{run_id}: syncing...')
     create_model_run(
-        model_name=meta['model_name'], run_id=run_id,
-        git_commit=meta['git_commit'], docker_tag=meta['docker_tag'],
-        run_timestamp=meta['run_timestamp'], status=meta['status'],
-        domain=meta['domain'], modality=meta['modality'],
+        model_name=meta.get('model_name', ''), run_id=run_id,
+        git_commit=meta.get('git_commit', ''), docker_tag=meta.get('docker_tag', ''),
+        run_timestamp=meta.get('run_timestamp', ''), status=meta.get('status', ''),
         input_files=list_run_files(run_id, 'input', repo),
         output_files=list_run_files(run_id, 'output', repo),
     )

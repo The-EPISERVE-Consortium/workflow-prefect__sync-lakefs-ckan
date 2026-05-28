@@ -25,29 +25,19 @@ def sync_run(run_id: str, lakefs_run_repo: str) -> None:
         metadata = get_run_metadata(run_id, lakefs_run_repo)
     except ObjectNotFoundException:
         logger.warning(f"Run {run_id} has no metadata.json, using empty defaults.")
-        metadata = {
-            "model_name":    "",
-            "git_commit":    "",
-            "docker_tag":    "",
-            "run_timestamp": "",
-            "status":        "",
-            "domain":        "",
-            "modality":      "",
-        }
+        metadata = {}
 
     logger.info(f"Syncing run {run_id} to CKAN")
     input_files  = list_run_files(run_id, "input", lakefs_run_repo)
     output_files = list_run_files(run_id, "output", lakefs_run_repo)
 
     create_model_run(
-        model_name    = metadata["model_name"],
+        model_name    = metadata.get("model_name",    ""),
         run_id        = run_id,
-        git_commit    = metadata["git_commit"],
-        docker_tag    = metadata["docker_tag"],
-        run_timestamp = metadata["run_timestamp"],
-        status        = metadata["status"],
-        domain        = metadata["domain"],
-        modality      = metadata["modality"],
+        git_commit    = metadata.get("git_commit",    ""),
+        docker_tag    = metadata.get("docker_tag",    ""),
+        run_timestamp = metadata.get("run_timestamp", ""),
+        status        = metadata.get("status",        ""),
         input_files   = input_files,
         output_files  = output_files,
     )

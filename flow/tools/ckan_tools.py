@@ -101,8 +101,6 @@ def create_model_run(
     docker_tag: str,
     run_timestamp: str,
     status: str,
-    domain: str,
-    modality: str,
     input_files: list,
     output_files: list,
 ) -> dict:
@@ -125,11 +123,9 @@ def create_model_run(
         "notes":     f"Model run {run_id} of {model_name}.",
         "owner_org": "episerve",
         "groups":    [{"name": "type-model-run"}],
-        "tags": [t for t in [
-            _vtag(vocabs, "domain",   domain)   if domain   else None,
-            _vtag(vocabs, "status",   status)   if status   else None,
-            _vtag(vocabs, "modality", modality) if modality else None,
-        ] if t is not None],
+        "tags": [
+            _vtag(vocabs, "status", status),
+        ] if status else [],
         "extras": [
             {"key": "run_id",        "value": run_id},
             {"key": "model",         "value": model_name},

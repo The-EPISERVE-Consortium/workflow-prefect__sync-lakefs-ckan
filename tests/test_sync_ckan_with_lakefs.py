@@ -6,12 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import sync_ckan_with_lakefs as m
-from sync_ckan_with_lakefs import (
+from ckan_tools import (
     _ckan_run_exists,
     create_model,
     create_model_run,
-    sync_run,
 )
+from sync_ckan_with_lakefs import sync_run
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -203,8 +203,8 @@ class TestSyncRun:
         output_files = ["lakefs://model-runs/main/run-001/output/result.nii"]
 
         with patch.object(m, "_ckan_run_exists", return_value=False), \
-             patch.object(m, "_get_run_metadata", return_value=metadata), \
-             patch.object(m, "_list_run_files", side_effect=[input_files, output_files]), \
+             patch.object(m, "get_run_metadata", return_value=metadata), \
+             patch.object(m, "list_run_files", side_effect=[input_files, output_files]), \
              patch.object(m, "create_model_run") as mock_create:
             sync_run("run-001", "model-runs")
 

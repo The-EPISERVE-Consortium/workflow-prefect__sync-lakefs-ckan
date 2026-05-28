@@ -12,11 +12,15 @@ export LAKEFS_HOST=https://lake-episerve.zib.de/
 # Run
 source .venv/bin/activate
 
+FORCE=False
+[[ "$1" == "--force-recreate" ]] && FORCE=True
+
 python -c "
 from flow.tools.lakefs_tools import list_runs
 from flow.sync_ckan_with_lakefs import _do_sync_run
 
 repo = 'model-runs'
+force_recreate = $FORCE
 for run_id in list_runs(repo):
-    _do_sync_run(run_id, repo)
+    _do_sync_run(run_id, repo, force_recreate=force_recreate)
 "

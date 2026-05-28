@@ -36,6 +36,11 @@ def _vtag(vocabs: dict, vocab: str, value: str) -> dict:
     return {"name": value, "vocabulary_id": vocabs[vocab]}
 
 
+def _ckan_delete_run(run_id: str) -> None:
+    """Delete a CKAN dataset by run_id (no-op if it does not exist)."""
+    _ckan_api("package_delete", {"id": run_id})
+
+
 def _ckan_run_exists(run_id: str) -> bool:
     """Return True if a CKAN dataset with extras_run_id == run_id already exists."""
     r = requests.get(

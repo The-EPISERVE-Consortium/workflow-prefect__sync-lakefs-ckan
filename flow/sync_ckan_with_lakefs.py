@@ -9,14 +9,17 @@ from lakefs.exceptions import ObjectNotFoundException
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from flow.tools.ckan_tools import _ckan_run_exists, create_model_run
+from flow.tools.ckan_tools import _ckan_delete_run, _ckan_run_exists, create_model_run
 from flow.tools.lakefs_tools import get_run_metadata, list_run_files, list_runs
 
 
-def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print) -> None:
+def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: bool = False) -> None:
     if _ckan_run_exists(run_id):
-        log(f"{run_id}: already in CKAN, skipping.")
-        return
+        if not force_recreate:
+            log(f"{run_id}: already in CKAN, skipping.")
+            return
+        log(f"{run_id}: already in CKAN, overwriting.")
+        _ckan_delete_run(run_id)
 
     try:
         metadata = get_run_metadata(run_id, lakefs_run_repo)
@@ -43,13 +46,13 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print) -> None:
 
 
 @task
-def sync_run(run_id: str, lakefs_run_repo: str) -> None:
+def sync_run(run_id: str, lakefs_run_repo: str, force_recreate: bool = False) -> None:
     logger = get_run_logger()
-    _do_sync_run(run_id, lakefs_run_repo, log=logger.info)
+    _do_sync_run(run_id, lakefs_run_repo, log=logger.info, force_recreate=force_recreate)
 
 
 @flow
-def sync_ckan_with_lakefs(lakefs_run_repo: str = "model-runs") -> None:
+def sync_ckan_with_lakefs(lakefs_run_repo: str = "model-runs", force_recreate: bool = False) -> None:
     """
     Scan the lakeFS model-runs repository and register any new runs in CKAN.
     Intended to run on a schedule as a Prefect deployment.
@@ -57,6 +60,6 @@ def sync_ckan_with_lakefs(lakefs_run_repo: str = "model-runs") -> None:
     logger  = get_run_logger()
     run_ids = list_runs(lakefs_run_repo)
     logger.info(f"Found {len(run_ids)} runs in lakeFS")
-    futures = [sync_run.submit(run_id, lakefs_run_repo) for run_id in run_ids]
+    futures = [sync_run.submit(run_id, lakefs_run_repo, force_recreate) for run_id in run_ids]
     for future in futures:
         future.result()

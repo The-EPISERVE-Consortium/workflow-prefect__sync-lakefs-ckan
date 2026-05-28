@@ -26,7 +26,7 @@ def list_runs(lakefs_run_repo: str) -> list:
     branch = repo.branch(LAKEFS_BRANCH)
     return [
         entry.path.rstrip("/")
-        for entry in branch.objects.list(delimiter="/")
+        for entry in branch.objects(delimiter="/")
         if "/" in entry.path
     ]
 
@@ -41,7 +41,7 @@ def list_run_files(run_id: str, subdir: str, lakefs_run_repo: str) -> list:
     prefix = f"{run_id}/{subdir}/"
     return [
         f"lakefs://{lakefs_run_repo}/{LAKEFS_BRANCH}/{entry.path}"
-        for entry in branch.objects.list(prefix=prefix)
+        for entry in branch.objects(prefix=prefix)
     ]
 
 

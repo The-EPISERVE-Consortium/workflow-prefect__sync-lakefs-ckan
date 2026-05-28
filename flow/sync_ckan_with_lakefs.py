@@ -5,6 +5,7 @@ whether a CKAN dataset for that run_id already exists; if not, it creates one
 and links all files from input/ and output/ as lakeFS URIs.
 """
 
+from lakefs.exceptions import ObjectNotFoundException
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
@@ -20,8 +21,21 @@ def sync_run(run_id: str, lakefs_run_repo: str) -> None:
         logger.info(f"Run {run_id} already in CKAN, skipping.")
         return
 
+    try:
+        metadata = get_run_metadata(run_id, lakefs_run_repo)
+    except ObjectNotFoundException:
+        logger.warning(f"Run {run_id} has no metadata.json, using empty defaults.")
+        metadata = {
+            "model_name":    "",
+            "git_commit":    "",
+            "docker_tag":    "",
+            "run_timestamp": "",
+            "status":        "",
+            "domain":        "",
+            "modality":      "",
+        }
+
     logger.info(f"Syncing run {run_id} to CKAN")
-    metadata     = get_run_metadata(run_id, lakefs_run_repo)
     input_files  = list_run_files(run_id, "input", lakefs_run_repo)
     output_files = list_run_files(run_id, "output", lakefs_run_repo)
 

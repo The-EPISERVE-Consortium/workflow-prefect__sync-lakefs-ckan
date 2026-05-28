@@ -125,11 +125,11 @@ def create_model_run(
         "notes":     f"Model run {run_id} of {model_name}.",
         "owner_org": "episerve",
         "groups":    [{"name": "type-model-run"}],
-        "tags": [
-            _vtag(vocabs, "domain",   domain),
-            _vtag(vocabs, "status",   status),
-            _vtag(vocabs, "modality", modality),
-        ],
+        "tags": [t for t in [
+            _vtag(vocabs, "domain",   domain)   if domain   else None,
+            _vtag(vocabs, "status",   status)   if status   else None,
+            _vtag(vocabs, "modality", modality) if modality else None,
+        ] if t is not None],
         "extras": [
             {"key": "run_id",        "value": run_id},
             {"key": "model",         "value": model_name},

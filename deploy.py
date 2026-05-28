@@ -1,30 +1,33 @@
 """
-Create or update the sync_ckan_with_lakefs Prefect deployment.
+Register the sync_ckan_with_lakefs flow as a Prefect deployment.
 
-Run from the project root after setting PREFECT_API_URL, PREFECT_API_KEY,
-CKAN_API_TOKEN, LAKEFS_ACCESS_KEY, and LAKEFS_SECRET_KEY in the environment.
+Run once (or on every release) from inside the cluster or any machine that
+can reach the Prefect server:
+
+    PREFECT_API_URL=http://prefect-server.default.svc.cluster.local:4200/api \
+        python deploy.py
 """
 
 import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "flows"))
+from prefect.runner.storage import GitRepository
 
-from sync_ckan_with_lakefs import sync_ckan_with_lakefs
+from flows.sync_ckan_with_lakefs import sync_ckan_with_lakefs
+
+GITHUB_REPO_URL = "https://github.com/The-EPISERVE-Consortium/workflow-prefect__sync-lakefs-ckan"
+DOCKER_IMAGE    = "ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest"
+WORK_POOL_NAME  = os.getenv("WORK_POOL_NAME", "kubernetes-pool")
+DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME", "sync-ckan-with-lakefs")
 
 if __name__ == "__main__":
-    sync_ckan_with_lakefs.deploy(
-        name            = "sync-ckan-with-lakefs",
-        work_pool_name  = "kubernetes-pool",
-        image           = "ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest",
-        build           = False,
-        push            = False,
-        cron            = "0 * * * *",
-        job_variables   = {
-            "env": {
-                "CKAN_API_TOKEN":    os.environ["CKAN_API_TOKEN"],
-                "LAKEFS_ACCESS_KEY": os.environ["LAKEFS_ACCESS_KEY"],
-                "LAKEFS_SECRET_KEY": os.environ["LAKEFS_SECRET_KEY"],
-            }
+    sync_ckan_with_lakefs.from_source(
+        source=GitRepository(url=GITHUB_REPO_URL, branch="main"),
+        entrypoint="flows/sync_ckan_with_lakefs.py:sync_ckan_with_lakefs",
+    ).deploy(
+        name=DEPLOYMENT_NAME,
+        work_pool_name=WORK_POOL_NAME,
+        job_variables={
+            "image": DOCKER_IMAGE,
+            "image_pull_policy": "Always",
         },
     )

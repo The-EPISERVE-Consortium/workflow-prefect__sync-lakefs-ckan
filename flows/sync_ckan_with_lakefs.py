@@ -15,8 +15,7 @@ from prefect.logging import get_run_logger
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-CKAN_URL        = "https://ckan.episerve.zib.de"
-LAKEFS_ENDPOINT = "https://lake-episerve.zib.de/"
+CKAN_URL        = os.environ["CKAN_HOST"]
 LAKEFS_RUN_REPO = "model-runs"
 LAKEFS_BRANCH   = "main"
 
@@ -172,7 +171,7 @@ def create_model_run(
 
 def _lakefs_client() -> lakefs.client.Client:
     return lakefs.client.Client(
-        host=os.environ.get("LAKEFS_HOST", "https://lake-episerve.zib.de/"),
+        host=os.environ["LAKEFS_HOST"],
         username=os.environ["LAKEFS_ACCESS_KEY"],
         password=os.environ["LAKEFS_SECRET_KEY"],
     )

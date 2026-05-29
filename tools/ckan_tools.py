@@ -124,6 +124,7 @@ def create_model(
 def create_model_run(
     model_name: str,
     run_id: str,
+    qid: str,
     git_commit: str,
     docker_tag: str,
     run_timestamp: str,
@@ -157,10 +158,11 @@ def create_model_run(
             _vtag(vocabs, "status", status),
         ] if status else [],
         "extras": [
-            {"key": "run_id",        "value": run_id},
-            {"key": "model",         "value": model_name},
-            {"key": "git_commit",    "value": git_commit},
-            {"key": "docker_tag",    "value": docker_tag},
+            {"key": "run_id",          "value": run_id},
+            {"key": "qid",             "value": qid},
+            {"key": "model",           "value": model_name},
+            {"key": "git_commit",      "value": git_commit},
+            {"key": "docker_tag",      "value": docker_tag},
             {"key": "run_timestamp",   "value": run_timestamp},
             {"key": "status",          "value": status},
             {"key": "computation_time","value": computation_time},

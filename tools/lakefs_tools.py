@@ -55,6 +55,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
 
     return {
         "model_name":       dataset.get("name",             ""),
+        "qid":              dataset.get("qid",              ""),
         "git_commit":       dataset.get("git_commit",       ""),
         "docker_tag":       dataset.get("docker_tag",       ""),
         "run_timestamp":    dataset.get("datePublished",    ""),

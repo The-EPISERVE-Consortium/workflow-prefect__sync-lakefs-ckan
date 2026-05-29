@@ -121,6 +121,7 @@ class TestCreateModelRun:
             result = create_model_run(
                 model_name       = "ct-seg",
                 run_id           = "run-2026-001",
+                qid              = "Q1748526042817",
                 git_commit       = "a3f9c12",
                 docker_tag       = "2.1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
@@ -151,6 +152,7 @@ class TestCreateModelRun:
             create_model_run(
                 model_name       = "ct-seg",
                 run_id           = "run-multi",
+                qid              = "Q1748526042817",
                 git_commit       = "abc",
                 docker_tag       = "1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
@@ -202,6 +204,7 @@ class TestSyncRun:
         rocrate_bytes = b'{"@context": "test"}'
         metadata = {
             "model_name":       "ct-seg",
+            "qid":              "Q1748526042817",
             "git_commit":       "a3f9c12",
             "docker_tag":       "2.1.0",
             "run_timestamp":    "2026-05-15T11:00:00Z",
@@ -220,6 +223,7 @@ class TestSyncRun:
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
             run_id           = "run-001",
+            qid              = "Q1748526042817",
             git_commit       = "a3f9c12",
             docker_tag       = "2.1.0",
             run_timestamp    = "2026-05-15T11:00:00Z",
@@ -253,6 +257,8 @@ _RO_CRATE = {
             "description":      "Model run of ct-seg (tag: 2.1.0)",
             "datePublished":    "2026-05-15T11:00:00Z",
             "license":          "unknown",
+            "identifier":       "Q1748526042817",
+            "qid":              "Q1748526042817",
             "git_commit":       "",
             "docker_tag":       "2.1.0",
             "status":           "success",
@@ -285,6 +291,7 @@ class TestGetRunMetadata:
 
         import json as _json
         assert result["model_name"]       == "ct-seg"
+        assert result["qid"]              == "Q1748526042817"
         assert result["git_commit"]       == ""
         assert result["docker_tag"]       == "2.1.0"
         assert result["run_timestamp"]    == "2026-05-15T11:00:00Z"
@@ -320,6 +327,7 @@ class TestGetRunMetadata:
             result = get_run_metadata("run-001", "model-runs")
 
         assert result["model_name"]   == "my-model"
+        assert result["qid"]          == ""
         assert result["git_commit"]   == ""
         assert result["docker_tag"]   == ""
         assert result["run_timestamp"] == ""

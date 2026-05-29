@@ -31,6 +31,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
     create_model_run(
         model_name       = metadata.get("model_name",       ""),
         run_id           = run_id,
+        qid              = metadata.get("qid",              ""),
         git_commit       = metadata.get("git_commit",       ""),
         docker_tag       = metadata.get("docker_tag",       ""),
         run_timestamp    = metadata.get("run_timestamp",    ""),

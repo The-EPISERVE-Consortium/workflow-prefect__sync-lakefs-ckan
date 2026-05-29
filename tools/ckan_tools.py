@@ -1,10 +1,9 @@
 """CKAN helper functions and dataset creation utilities."""
 
 import os
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
-
-from tools.lakefs_tools import lakefs_uri_to_http
 
 CKAN_URL = os.environ["CKAN_HOST"]
 
@@ -30,6 +29,11 @@ def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
     return {v["name"]: v["id"] for v in
         requests.get(f"{CKAN_URL}/api/3/action/vocabulary_list").json()["result"]}
+
+
+def _filename_from_url(url: str) -> str:
+    path = unquote(parse_qs(urlparse(url).query).get("path", [""])[0])
+    return path.split("/")[-1] if path else url.split("/")[-1]
 
 
 def _vtag(vocabs: dict, vocab: str, value: str) -> dict:
@@ -114,10 +118,10 @@ def create_model_run(
 ) -> dict:
     """
     Create a model run dataset in CKAN and attach all input and output files
-    as resources with lakeFS URIs.
+    as resources.
 
-    input_files / output_files are lists of full lakeFS URIs:
-      e.g. ["lakefs://model-runs/main/<run_id>/input/config.yaml"]
+    input_files / output_files are lists of lakeFS HTTP API URLs as embedded in
+    the RO-Crate metadata (File entity @id values).
 
     The dataset is placed in the type-model-run group and carries extras.model
     pointing to the model descriptor, enabling run discovery via
@@ -145,24 +149,22 @@ def create_model_run(
         ],
     })
 
-    for uri in input_files:
-        filename = uri.split("/")[-1]
+    for url in input_files:
+        filename = _filename_from_url(url)
         _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
-            "url":         lakefs_uri_to_http(uri),
-            "lakefs_uri":  uri,
+            "url":         url,
             "format":      filename.split(".")[-1].upper(),
             "description": "Input file",
         })
 
-    for uri in output_files:
-        filename = uri.split("/")[-1]
+    for url in output_files:
+        filename = _filename_from_url(url)
         _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
-            "url":         lakefs_uri_to_http(uri),
-            "lakefs_uri":  uri,
+            "url":         url,
             "format":      filename.split(".")[-1].upper(),
             "description": "Output file",
         })

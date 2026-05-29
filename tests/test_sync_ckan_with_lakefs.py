@@ -100,11 +100,14 @@ class TestCreateModel:
 
 # ── create_model_run ───────────────────────────────────────────────────────────
 
+_BASE = "http://test-lakefs/api/v1/repositories/model-runs/refs/main/objects"
+
+
 class TestCreateModelRun:
     def test_calls_package_create_once_and_resource_create_per_file(self):
         pkg = {"id": "pkg-123", "name": "run-2026-001"}
-        input_files  = ["lakefs://model-runs/main/run-2026-001/input/config.yaml"]
-        output_files = ["lakefs://model-runs/main/run-2026-001/output/result.nii"]
+        input_files  = [f"{_BASE}?path=run-2026-001%2Finput%2Fconfig.yaml&presign=false"]
+        output_files = [f"{_BASE}?path=run-2026-001%2Foutput%2Fresult.nii&presign=false"]
 
         mock_pkg_resp = _post_response(pkg)
         mock_res_resp = _post_response({})
@@ -150,10 +153,10 @@ class TestCreateModelRun:
                 status           = "success",
                 computation_time = "",
                 input_files   = [
-                    "lakefs://model-runs/main/run-multi/input/a.yaml",
-                    "lakefs://model-runs/main/run-multi/input/b.yaml",
+                    f"{_BASE}?path=run-multi%2Finput%2Fa.yaml&presign=false",
+                    f"{_BASE}?path=run-multi%2Finput%2Fb.yaml&presign=false",
                 ],
-                output_files  = ["lakefs://model-runs/main/run-multi/output/out.nii"],
+                output_files  = [f"{_BASE}?path=run-multi%2Foutput%2Fout.nii&presign=false"],
             )
 
         assert mock_post.call_count == 4  # 1 + 2 inputs + 1 output
@@ -189,19 +192,21 @@ class TestSyncRun:
         mock_create.assert_not_called()
 
     def test_creates_run_when_not_in_ckan(self):
+        input_files  = [f"{_BASE}?path=run-001%2Finput%2Fconfig.yaml&presign=false"]
+        output_files = [f"{_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"]
         metadata = {
-            "model_name":    "ct-seg",
-            "git_commit":    "a3f9c12",
-            "docker_tag":    "2.1.0",
-            "run_timestamp": "2026-05-15T11:00:00Z",
-            "status":        "success",
+            "model_name":       "ct-seg",
+            "git_commit":       "a3f9c12",
+            "docker_tag":       "2.1.0",
+            "run_timestamp":    "2026-05-15T11:00:00Z",
+            "status":           "success",
+            "computation_time": "",
+            "input_files":      input_files,
+            "output_files":     output_files,
         }
-        input_files  = ["lakefs://model-runs/main/run-001/input/config.yaml"]
-        output_files = ["lakefs://model-runs/main/run-001/output/result.nii"]
 
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
-             patch.object(m, "list_run_files", side_effect=[input_files, output_files]), \
              patch.object(m, "create_model_run") as mock_create:
             sync_run("run-001", "model-runs")
 
@@ -219,6 +224,10 @@ class TestSyncRun:
 
 
 # ── get_run_metadata ───────────────────────────────────────────────────────────
+
+_LAKEFS_BASE = "http://test-lakefs/api/v1/repositories/model-runs/refs/main/objects"
+_INPUT_URL   = f"{_LAKEFS_BASE}?path=run-001%2Finput%2Fconfig.yaml&presign=false"
+_OUTPUT_URL  = f"{_LAKEFS_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"
 
 _RO_CRATE = {
     "@context": "https://w3id.org/ro/crate/1.1/context",
@@ -240,7 +249,10 @@ _RO_CRATE = {
             "docker_tag":       "2.1.0",
             "status":           "success",
             "computation_time": 42,
+            "hasPart": [{"@id": _INPUT_URL}, {"@id": _OUTPUT_URL}],
         },
+        {"@id": _INPUT_URL,  "@type": "File", "name": "config.yaml", "encodingFormat": "application/yaml"},
+        {"@id": _OUTPUT_URL, "@type": "File", "name": "result.nii"},
     ],
 }
 
@@ -270,6 +282,8 @@ class TestGetRunMetadata:
             "run_timestamp":    "2026-05-15T11:00:00Z",
             "status":           "success",
             "computation_time": 42,
+            "input_files":      [_INPUT_URL],
+            "output_files":     [_OUTPUT_URL],
         }
 
     def test_reads_correct_object_path(self):
@@ -297,9 +311,11 @@ class TestGetRunMetadata:
             mock_repo.return_value.branch.return_value.object.return_value = obj
             result = get_run_metadata("run-001", "model-runs")
 
-        assert result["model_name"] == "my-model"
-        assert result["git_commit"] == ""
-        assert result["docker_tag"] == ""
+        assert result["model_name"]   == "my-model"
+        assert result["git_commit"]   == ""
+        assert result["docker_tag"]   == ""
         assert result["run_timestamp"] == ""
-        assert result["status"] == ""
+        assert result["status"]        == ""
         assert result["computation_time"] == ""
+        assert result["input_files"]  == []
+        assert result["output_files"] == []

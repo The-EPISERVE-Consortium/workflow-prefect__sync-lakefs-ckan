@@ -10,7 +10,7 @@ from prefect import flow, task
 from prefect.logging import get_run_logger
 
 from tools.ckan_tools import _ckan_delete_run, _ckan_run_exists, create_model_run
-from tools.lakefs_tools import get_run_metadata, list_run_files, list_runs
+from tools.lakefs_tools import get_run_metadata, list_runs
 
 
 def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: bool = False) -> None:
@@ -28,9 +28,6 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         metadata = {}
 
     log(f"{run_id}: syncing...")
-    input_files  = list_run_files(run_id, "input",  lakefs_run_repo)
-    output_files = list_run_files(run_id, "output", lakefs_run_repo)
-
     create_model_run(
         model_name       = metadata.get("model_name",       ""),
         run_id           = run_id,
@@ -39,8 +36,8 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         run_timestamp    = metadata.get("run_timestamp",    ""),
         status           = metadata.get("status",           ""),
         computation_time = metadata.get("computation_time", ""),
-        input_files      = input_files,
-        output_files     = output_files,
+        input_files      = metadata.get("input_files",  []),
+        output_files     = metadata.get("output_files", []),
     )
     log(f"{run_id}: done.")
 

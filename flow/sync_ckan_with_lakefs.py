@@ -23,9 +23,12 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
 
     try:
         metadata = get_run_metadata(run_id, lakefs_run_repo)
+    except ValueError:
+        log(f"{run_id}: not a valid QID, skipping.")
+        return
     except ObjectNotFoundException:
-        log(f"{run_id}: no metadata.json, using empty defaults.")
-        metadata = {}
+        log(f"{run_id}: no ro-crate-metadata.json, skipping.")
+        return
 
     log(f"{run_id}: syncing...")
     create_model_run(

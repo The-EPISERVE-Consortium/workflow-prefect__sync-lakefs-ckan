@@ -6,6 +6,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import lakefs
 
+from tools.sharding import shard_qid
+
 LAKEFS_BRANCH = "main"
 
 
@@ -20,16 +22,16 @@ def _lakefs_client() -> lakefs.client.Client:
 
 def list_runs(lakefs_run_repo: str) -> list:
     """
-    List all top-level run folders in <lakefs_run_repo>/main.
-    Returns a list of run_id strings (bare files at root are skipped).
+    Find all runs in <lakefs_run_repo>/main by scanning for ro-crate-metadata.json
+    files and extracting the QID from the sharded path pp/qq/rr/QNNN/ro-crate-metadata.json.
     """
     client = _lakefs_client()
     repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     return [
-        entry.path.rstrip("/")
-        for entry in branch.objects(delimiter="/")
-        if "/" in entry.path
+        entry.path.split("/")[-2]
+        for entry in branch.objects()
+        if entry.path.endswith("/ro-crate-metadata.json")
     ]
 
 
@@ -38,7 +40,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     client = _lakefs_client()
     repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
-    obj    = branch.object(f"{run_id}/ro-crate-metadata.json")
+    obj    = branch.object(f"{shard_qid(run_id)}/ro-crate-metadata.json")
     with obj.reader() as f:
         raw = f.read()
     crate   = json.loads(raw)

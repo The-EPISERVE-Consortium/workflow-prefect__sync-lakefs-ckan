@@ -12,6 +12,7 @@ from tools.ckan_tools import (
     create_model_run,
 )
 from tools.lakefs_tools import get_run_metadata
+from tools.sharding import shard_qid
 from flow.sync_ckan_with_lakefs import sync_run
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -238,8 +239,10 @@ class TestSyncRun:
 # ── get_run_metadata ───────────────────────────────────────────────────────────
 
 _LAKEFS_BASE = "http://test-lakefs/api/v1/repositories/model-runs/refs/main/objects"
-_INPUT_URL   = f"{_LAKEFS_BASE}?path=run-001%2Finput%2Fconfig.yaml&presign=false"
-_OUTPUT_URL  = f"{_LAKEFS_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"
+_QID         = "Q1748526042817"
+# shard_qid("Q1748526042817") → "17/48/52/Q1748526042817"
+_INPUT_URL   = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Finput%2Fconfig.yaml&presign=false"
+_OUTPUT_URL  = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Foutput%2Fresult.nii&presign=false"
 
 _RO_CRATE = {
     "@context": "https://w3id.org/ro/crate/1.1/context",
@@ -287,7 +290,7 @@ class TestGetRunMetadata:
         with patch("tools.lakefs_tools._lakefs_client"), \
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
             mock_repo.return_value.branch.return_value.object.return_value = obj
-            result = get_run_metadata("run-001", "model-runs")
+            result = get_run_metadata(_QID, "model-runs")
 
         import json as _json
         assert result["model_name"]       == "ct-seg"
@@ -307,9 +310,11 @@ class TestGetRunMetadata:
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
             branch_mock = mock_repo.return_value.branch.return_value
             branch_mock.object.return_value = obj
-            get_run_metadata("run-2026-001", "model-runs")
+            get_run_metadata(_QID, "model-runs")
 
-        branch_mock.object.assert_called_once_with("run-2026-001/ro-crate-metadata.json")
+        branch_mock.object.assert_called_once_with(
+            f"{shard_qid(_QID)}/ro-crate-metadata.json"
+        )
 
     def test_missing_optional_fields_default_to_empty_string(self):
         sparse_crate = {
@@ -324,7 +329,7 @@ class TestGetRunMetadata:
         with patch("tools.lakefs_tools._lakefs_client"), \
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
             mock_repo.return_value.branch.return_value.object.return_value = obj
-            result = get_run_metadata("run-001", "model-runs")
+            result = get_run_metadata(_QID, "model-runs")
 
         assert result["model_name"]   == "my-model"
         assert result["qid"]          == ""

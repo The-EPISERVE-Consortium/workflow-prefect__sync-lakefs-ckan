@@ -58,7 +58,7 @@ def _vtag(vocabs: dict, vocab: str, value: str) -> dict:
 
 def _ckan_delete_run(run_id: str) -> None:
     """Delete a CKAN dataset by run_id (no-op if it does not exist)."""
-    _ckan_api("package_delete", {"id": run_id})
+    _ckan_api("package_delete", {"id": run_id.lower()})
 
 
 def _ckan_run_exists(run_id: str) -> bool:
@@ -149,7 +149,7 @@ def create_model_run(
     vocabs = _vocabs()
 
     pkg = _ckan_api("package_create", {
-        "name":      run_id,
+        "name":      run_id.lower(),
         "title":     f"{model_name} · {run_id}",
         "notes":     f"Model run {run_id} of {model_name}.",
         "owner_org": "episerve",

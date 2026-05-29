@@ -1,8 +1,8 @@
 """
 Prefect flow that periodically scans the lakeFS model-runs repository and
-registers any new runs in CKAN. For each run folder found in lakeFS it checks
-whether a CKAN dataset for that run_id already exists; if not, it creates one
-and links all files from input/ and output/ as lakeFS URIs.
+registers any new runs in CKAN. Each run is stored under its QID path in
+lakeFS (e.g. Q1748526042817/). The flow reads the RO-Crate metadata,
+uploads it to CKAN, and registers all input/output files as resources.
 """
 
 from lakefs.exceptions import ObjectNotFoundException

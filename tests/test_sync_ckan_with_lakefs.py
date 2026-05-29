@@ -112,24 +112,27 @@ class TestCreateModelRun:
         mock_pkg_resp = _post_response(pkg)
         mock_res_resp = _post_response({})
 
+        rocrate_bytes = b'{"@context": "test"}'
+
         with patch("requests.get", return_value=_vocab_get_response()), \
              patch("requests.post") as mock_post:
-            mock_post.side_effect = [mock_pkg_resp, mock_res_resp, mock_res_resp]
+            mock_post.side_effect = [mock_pkg_resp, mock_res_resp, mock_res_resp, mock_res_resp]
 
             result = create_model_run(
-                model_name    = "ct-seg",
-                run_id        = "run-2026-001",
-                git_commit    = "a3f9c12",
-                docker_tag    = "2.1.0",
+                model_name       = "ct-seg",
+                run_id           = "run-2026-001",
+                git_commit       = "a3f9c12",
+                docker_tag       = "2.1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
                 status           = "success",
                 computation_time = "",
-                input_files   = input_files,
-                output_files  = output_files,
+                rocrate_bytes    = rocrate_bytes,
+                input_files      = input_files,
+                output_files     = output_files,
             )
 
-        # 1 package_create + 1 input resource + 1 output resource
-        assert mock_post.call_count == 3
+        # 1 package_create + 1 rocrate + 1 input resource + 1 output resource
+        assert mock_post.call_count == 4
         assert result == pkg
 
     def test_creates_one_resource_per_input_and_output(self):
@@ -139,27 +142,29 @@ class TestCreateModelRun:
              patch("requests.post") as mock_post:
             mock_post.side_effect = [
                 _post_response(pkg),
+                _post_response({}),  # rocrate
                 _post_response({}),  # input 1
                 _post_response({}),  # input 2
                 _post_response({}),  # output 1
             ]
 
             create_model_run(
-                model_name    = "ct-seg",
-                run_id        = "run-multi",
-                git_commit    = "abc",
-                docker_tag    = "1.0",
+                model_name       = "ct-seg",
+                run_id           = "run-multi",
+                git_commit       = "abc",
+                docker_tag       = "1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
                 status           = "success",
                 computation_time = "",
-                input_files   = [
+                rocrate_bytes    = b'{"@context": "test"}',
+                input_files      = [
                     f"{_BASE}?path=run-multi%2Finput%2Fa.yaml&presign=false",
                     f"{_BASE}?path=run-multi%2Finput%2Fb.yaml&presign=false",
                 ],
-                output_files  = [f"{_BASE}?path=run-multi%2Foutput%2Fout.nii&presign=false"],
+                output_files     = [f"{_BASE}?path=run-multi%2Foutput%2Fout.nii&presign=false"],
             )
 
-        assert mock_post.call_count == 4  # 1 + 2 inputs + 1 output
+        assert mock_post.call_count == 5  # 1 pkg + 1 rocrate + 2 inputs + 1 output
 
 
 # ── _ckan_run_exists ───────────────────────────────────────────────────────────
@@ -192,8 +197,9 @@ class TestSyncRun:
         mock_create.assert_not_called()
 
     def test_creates_run_when_not_in_ckan(self):
-        input_files  = [f"{_BASE}?path=run-001%2Finput%2Fconfig.yaml&presign=false"]
-        output_files = [f"{_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"]
+        input_files   = [f"{_BASE}?path=run-001%2Finput%2Fconfig.yaml&presign=false"]
+        output_files  = [f"{_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"]
+        rocrate_bytes = b'{"@context": "test"}'
         metadata = {
             "model_name":       "ct-seg",
             "git_commit":       "a3f9c12",
@@ -201,6 +207,7 @@ class TestSyncRun:
             "run_timestamp":    "2026-05-15T11:00:00Z",
             "status":           "success",
             "computation_time": "",
+            "rocrate_bytes":    rocrate_bytes,
             "input_files":      input_files,
             "output_files":     output_files,
         }
@@ -218,6 +225,7 @@ class TestSyncRun:
             run_timestamp    = "2026-05-15T11:00:00Z",
             status           = "success",
             computation_time = "",
+            rocrate_bytes    = rocrate_bytes,
             input_files      = input_files,
             output_files     = output_files,
         )
@@ -275,16 +283,16 @@ class TestGetRunMetadata:
             mock_repo.return_value.branch.return_value.object.return_value = obj
             result = get_run_metadata("run-001", "model-runs")
 
-        assert result == {
-            "model_name":       "ct-seg",
-            "git_commit":       "",
-            "docker_tag":       "2.1.0",
-            "run_timestamp":    "2026-05-15T11:00:00Z",
-            "status":           "success",
-            "computation_time": 42,
-            "input_files":      [_INPUT_URL],
-            "output_files":     [_OUTPUT_URL],
-        }
+        import json as _json
+        assert result["model_name"]       == "ct-seg"
+        assert result["git_commit"]       == ""
+        assert result["docker_tag"]       == "2.1.0"
+        assert result["run_timestamp"]    == "2026-05-15T11:00:00Z"
+        assert result["status"]           == "success"
+        assert result["computation_time"] == 42
+        assert result["input_files"]      == [_INPUT_URL]
+        assert result["output_files"]     == [_OUTPUT_URL]
+        assert _json.loads(result["rocrate_bytes"]) == _RO_CRATE
 
     def test_reads_correct_object_path(self):
         obj = self._mock_object(_RO_CRATE)
@@ -317,5 +325,6 @@ class TestGetRunMetadata:
         assert result["run_timestamp"] == ""
         assert result["status"]        == ""
         assert result["computation_time"] == ""
-        assert result["input_files"]  == []
-        assert result["output_files"] == []
+        assert result["rocrate_bytes"] != b""
+        assert result["input_files"]   == []
+        assert result["output_files"]  == []

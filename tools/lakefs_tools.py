@@ -40,7 +40,8 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     branch = repo.branch(LAKEFS_BRANCH)
     obj    = branch.object(f"{run_id}/ro-crate-metadata.json")
     with obj.reader() as f:
-        crate = json.loads(f.read())
+        raw = f.read()
+    crate   = json.loads(raw)
     dataset = next(e for e in crate["@graph"] if e.get("@id") == "./")
 
     input_files, output_files = [], []
@@ -59,6 +60,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "run_timestamp":    dataset.get("datePublished",    ""),
         "status":           dataset.get("status",           ""),
         "computation_time": dataset.get("computation_time", ""),
+        "rocrate_bytes":    raw,
         "input_files":      input_files,
         "output_files":     output_files,
     }

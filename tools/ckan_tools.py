@@ -25,6 +25,22 @@ def _ckan_api(action: str, payload: dict) -> dict:
     return r["result"]
 
 
+def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, description: str) -> None:
+    r = requests.post(
+        f"{CKAN_URL}/api/3/action/resource_create",
+        headers=_ckan_headers(),
+        data={
+            "package_id":  pkg_id,
+            "name":        filename,
+            "format":      "JSON",
+            "description": description,
+        },
+        files={"upload": (filename, content, "application/json")},
+    ).json()
+    if not r["success"]:
+        raise RuntimeError(f"CKAN resource_create (upload) failed: {r['error']}")
+
+
 def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
     return {v["name"]: v["id"] for v in
@@ -113,6 +129,7 @@ def create_model_run(
     run_timestamp: str,
     status: str,
     computation_time: str,
+    rocrate_bytes: bytes,
     input_files: list,
     output_files: list,
 ) -> dict:
@@ -120,8 +137,9 @@ def create_model_run(
     Create a model run dataset in CKAN and attach all input and output files
     as resources.
 
-    input_files / output_files are lists of lakeFS HTTP API URLs as embedded in
-    the RO-Crate metadata (File entity @id values).
+    rocrate_bytes is uploaded as an actual file to CKAN.
+    input_files / output_files are lists of lakeFS HTTP API URLs stored as
+    resource source URLs.
 
     The dataset is placed in the type-model-run group and carries extras.model
     pointing to the model descriptor, enabling run discovery via
@@ -148,6 +166,9 @@ def create_model_run(
             {"key": "computation_time","value": computation_time},
         ],
     })
+
+    if rocrate_bytes:
+        _ckan_upload_resource(pkg["id"], "ro-crate-metadata.json", rocrate_bytes, "RO-Crate metadata")
 
     for url in input_files:
         filename = _filename_from_url(url)

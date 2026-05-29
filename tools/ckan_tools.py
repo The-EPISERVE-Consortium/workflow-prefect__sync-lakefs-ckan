@@ -4,7 +4,7 @@ import os
 
 import requests
 
-from flow.tools.lakefs_tools import lakefs_uri_to_http
+from tools.lakefs_tools import lakefs_uri_to_http
 
 CKAN_URL = os.environ["CKAN_HOST"]
 

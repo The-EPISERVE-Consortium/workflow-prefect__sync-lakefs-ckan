@@ -16,7 +16,7 @@ FORCE=False
 [[ "$1" == "--force-recreate" ]] && FORCE=True
 
 python -c "
-from flow.tools.lakefs_tools import list_runs
+from tools.lakefs_tools import list_runs
 from flow.sync_ckan_with_lakefs import _do_sync_run
 
 repo = 'model-runs'

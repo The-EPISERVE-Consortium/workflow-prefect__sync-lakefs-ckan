@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import flow.sync_ckan_with_lakefs as m
-from flow.tools.ckan_tools import (
+from tools.ckan_tools import (
     _ckan_run_exists,
     create_model,
     create_model_run,

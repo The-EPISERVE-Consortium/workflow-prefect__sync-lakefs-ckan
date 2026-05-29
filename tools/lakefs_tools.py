@@ -66,10 +66,19 @@ def list_run_files(run_id: str, subdir: str, lakefs_run_repo: str) -> list:
 
 
 def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
-    """Read and return the parsed metadata.json for a given run."""
+    """Read ro-crate-metadata.json and return a flat metadata dict."""
     client = _lakefs_client()
     repo   = lakefs.Repository(lakefs_run_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
-    obj    = branch.object(f"{run_id}/metadata.json")
+    obj    = branch.object(f"{run_id}/ro-crate-metadata.json")
     with obj.reader() as f:
-        return json.loads(f.read())
+        crate = json.loads(f.read())
+    dataset = next(e for e in crate["@graph"] if e.get("@id") == "./")
+    return {
+        "model_name":       dataset.get("name",             ""),
+        "git_commit":       dataset.get("git_commit",       ""),
+        "docker_tag":       dataset.get("docker_tag",       ""),
+        "run_timestamp":    dataset.get("datePublished",    ""),
+        "status":           dataset.get("status",           ""),
+        "computation_time": dataset.get("computation_time", ""),
+    }

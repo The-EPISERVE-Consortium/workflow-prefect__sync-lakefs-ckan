@@ -11,6 +11,7 @@ from tools.ckan_tools import (
     create_model,
     create_model_run,
 )
+from tools.lakefs_tools import get_run_metadata
 from flow.sync_ckan_with_lakefs import sync_run
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -215,3 +216,90 @@ class TestSyncRun:
             input_files      = input_files,
             output_files     = output_files,
         )
+
+
+# ── get_run_metadata ───────────────────────────────────────────────────────────
+
+_RO_CRATE = {
+    "@context": "https://w3id.org/ro/crate/1.1/context",
+    "@graph": [
+        {
+            "@id": "ro-crate-metadata.json",
+            "@type": "CreativeWork",
+            "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"},
+            "about": {"@id": "./"},
+        },
+        {
+            "@id": "./",
+            "@type": "Dataset",
+            "name":             "ct-seg",
+            "description":      "Model run of ct-seg (tag: 2.1.0)",
+            "datePublished":    "2026-05-15T11:00:00Z",
+            "license":          "unknown",
+            "git_commit":       "",
+            "docker_tag":       "2.1.0",
+            "status":           "success",
+            "computation_time": 42,
+        },
+    ],
+}
+
+
+class TestGetRunMetadata:
+    def _mock_object(self, crate: dict):
+        import json
+        reader = MagicMock()
+        reader.__enter__ = lambda s: s
+        reader.__exit__ = MagicMock(return_value=False)
+        reader.read.return_value = json.dumps(crate).encode()
+        obj = MagicMock()
+        obj.reader.return_value = reader
+        return obj
+
+    def test_extracts_all_fields(self):
+        obj = self._mock_object(_RO_CRATE)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_run_metadata("run-001", "model-runs")
+
+        assert result == {
+            "model_name":       "ct-seg",
+            "git_commit":       "",
+            "docker_tag":       "2.1.0",
+            "run_timestamp":    "2026-05-15T11:00:00Z",
+            "status":           "success",
+            "computation_time": 42,
+        }
+
+    def test_reads_correct_object_path(self):
+        obj = self._mock_object(_RO_CRATE)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            branch_mock = mock_repo.return_value.branch.return_value
+            branch_mock.object.return_value = obj
+            get_run_metadata("run-2026-001", "model-runs")
+
+        branch_mock.object.assert_called_once_with("run-2026-001/ro-crate-metadata.json")
+
+    def test_missing_optional_fields_default_to_empty_string(self):
+        sparse_crate = {
+            "@context": "https://w3id.org/ro/crate/1.1/context",
+            "@graph": [
+                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {"@id": "./", "@type": "Dataset", "name": "my-model"},
+            ],
+        }
+        obj = self._mock_object(sparse_crate)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_run_metadata("run-001", "model-runs")
+
+        assert result["model_name"] == "my-model"
+        assert result["git_commit"] == ""
+        assert result["docker_tag"] == ""
+        assert result["run_timestamp"] == ""
+        assert result["status"] == ""
+        assert result["computation_time"] == ""

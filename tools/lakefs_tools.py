@@ -2,7 +2,7 @@
 
 import json
 import os
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import lakefs
 
@@ -19,14 +19,10 @@ def _lakefs_client() -> lakefs.client.Client:
     )
 
 
-def _component_url(run_id: str, component_id: str, repo: str) -> str:
-    """Build a lakeFS API download URL for a components/-relative path."""
-    path = f"{shard_qid(run_id)}/{component_id}"
-    host = os.environ["LAKEFS_HOST"]
-    return (
-        f"{host}/api/v1/repositories/{repo}/refs/{LAKEFS_BRANCH}"
-        f"/objects?path={quote(path, safe='')}&presign=false"
-    )
+def _doip_url(run_id: str, component_id: str) -> str:
+    """Build a DOIP retrieve URL for a components/-relative path."""
+    element = component_id[len("components/"):]
+    return f"{os.environ['DOIP_HOST']}/doip/retrieve/{run_id}/{element}"
 
 
 def list_runs(lakefs_run_repo: str) -> list:
@@ -60,7 +56,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         part_id = part["@id"]
         if part_id.startswith("components/"):
             # New format: relative path → construct a downloadable lakeFS URL
-            url = _component_url(run_id, part_id, lakefs_run_repo)
+            url = _doip_url(run_id, part_id)
             if part_id.startswith("components/input/"):
                 input_files.append(url)
             elif part_id.startswith("components/output/"):

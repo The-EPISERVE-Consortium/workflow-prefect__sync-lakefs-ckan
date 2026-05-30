@@ -244,9 +244,9 @@ _QID         = "Q1748526042817"
 # New-format: relative component paths in @id
 _INPUT_REL  = "components/input/config.yaml"
 _OUTPUT_REL = "components/output/result.nii"
-# Constructed lakeFS API URLs expected by CKAN (built from relative paths)
-_INPUT_URL  = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Fcomponents%2Finput%2Fconfig.yaml&presign=false"
-_OUTPUT_URL = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Fcomponents%2Foutput%2Fresult.nii&presign=false"
+# DOIP retrieve URLs stored as CKAN resource URLs
+_INPUT_URL  = "http://test-doip/doip/retrieve/Q1748526042817/input/config.yaml"
+_OUTPUT_URL = "http://test-doip/doip/retrieve/Q1748526042817/output/result.nii"
 
 _RO_CRATE = {
     "@context": "https://w3id.org/ro/crate/1.1/context",

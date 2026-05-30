@@ -13,7 +13,6 @@ from tools.ckan_tools import (
 )
 from tools.lakefs_tools import get_run_metadata
 from tools.sharding import shard_qid
-from flow.sync_ckan_with_lakefs import sync_run
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -194,7 +193,7 @@ class TestSyncRun:
     def test_skips_run_when_already_in_ckan(self):
         with patch.object(m, "_ckan_run_exists", return_value=True) as mock_exists, \
              patch.object(m, "create_model_run") as mock_create:
-            sync_run("run-2026-001", "model-runs")
+            m._do_sync_run("run-2026-001", "model-runs")
 
         mock_exists.assert_called_once_with("run-2026-001")
         mock_create.assert_not_called()
@@ -219,7 +218,7 @@ class TestSyncRun:
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
              patch.object(m, "create_model_run") as mock_create:
-            sync_run("run-001", "model-runs")
+            m._do_sync_run("run-001", "model-runs")
 
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
@@ -241,8 +240,13 @@ class TestSyncRun:
 _LAKEFS_BASE = "http://test-lakefs/api/v1/repositories/model-runs/refs/main/objects"
 _QID         = "Q1748526042817"
 # shard_qid("Q1748526042817") → "17/48/52/Q1748526042817"
-_INPUT_URL   = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Finput%2Fconfig.yaml&presign=false"
-_OUTPUT_URL  = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Foutput%2Fresult.nii&presign=false"
+
+# New-format: relative component paths in @id
+_INPUT_REL  = "components/input/config.yaml"
+_OUTPUT_REL = "components/output/result.nii"
+# Constructed lakeFS API URLs expected by CKAN (built from relative paths)
+_INPUT_URL  = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Fcomponents%2Finput%2Fconfig.yaml&presign=false"
+_OUTPUT_URL = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Fcomponents%2Foutput%2Fresult.nii&presign=false"
 
 _RO_CRATE = {
     "@context": "https://w3id.org/ro/crate/1.1/context",
@@ -266,12 +270,16 @@ _RO_CRATE = {
             "docker_tag":       "2.1.0",
             "status":           "success",
             "computation_time": 42,
-            "hasPart": [{"@id": _INPUT_URL}, {"@id": _OUTPUT_URL}],
+            "hasPart": [{"@id": _INPUT_REL}, {"@id": _OUTPUT_REL}],
         },
-        {"@id": _INPUT_URL,  "@type": "File", "name": "config.yaml", "encodingFormat": "application/yaml"},
-        {"@id": _OUTPUT_URL, "@type": "File", "name": "result.nii"},
+        {"@id": _INPUT_REL,  "@type": "File", "name": "config.yaml", "encodingFormat": "application/yaml"},
+        {"@id": _OUTPUT_REL, "@type": "File", "name": "result.nii"},
     ],
 }
+
+# Legacy-format: full lakeFS API URLs in @id (used for backward-compat tests)
+_LEGACY_INPUT_URL  = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Finput%2Fconfig.yaml&presign=false"
+_LEGACY_OUTPUT_URL = f"{_LAKEFS_BASE}?path=17%2F48%2F52%2FQ1748526042817%2Foutput%2Fresult.nii&presign=false"
 
 
 class TestGetRunMetadata:
@@ -341,3 +349,44 @@ class TestGetRunMetadata:
         assert result["rocrate_bytes"] != b""
         assert result["input_files"]   == []
         assert result["output_files"]  == []
+
+    def test_identifier_used_as_qid_fallback(self):
+        crate = {
+            "@context": "https://w3id.org/ro/crate/1.1/context",
+            "@graph": [
+                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {"@id": "./", "@type": "Dataset", "name": "my-model", "identifier": "Q9999"},
+            ],
+        }
+        obj = self._mock_object(crate)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_run_metadata("Q9999", "model-runs")
+
+        assert result["qid"] == "Q9999"
+
+    def test_legacy_full_url_hasPart_classified_correctly(self):
+        """Old-style full lakeFS API URLs in hasPart are still routed to input/output lists."""
+        legacy_crate = {
+            "@context": "https://w3id.org/ro/crate/1.1/context",
+            "@graph": [
+                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {
+                    "@id": "./",
+                    "@type": "Dataset",
+                    "name": "ct-seg",
+                    "hasPart": [{"@id": _LEGACY_INPUT_URL}, {"@id": _LEGACY_OUTPUT_URL}],
+                },
+            ],
+        }
+        obj = self._mock_object(legacy_crate)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_run_metadata(_QID, "model-runs")
+
+        assert result["input_files"]  == [_LEGACY_INPUT_URL]
+        assert result["output_files"] == [_LEGACY_OUTPUT_URL]

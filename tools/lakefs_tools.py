@@ -2,7 +2,7 @@
 
 import json
 import os
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import lakefs
 
@@ -11,12 +11,21 @@ from tools.sharding import shard_qid
 LAKEFS_BRANCH = "main"
 
 
-
 def _lakefs_client() -> lakefs.client.Client:
     return lakefs.client.Client(
         host=os.environ["LAKEFS_HOST"],
         username=os.environ["LAKEFS_ACCESS_KEY"],
         password=os.environ["LAKEFS_SECRET_KEY"],
+    )
+
+
+def _component_url(run_id: str, component_id: str, repo: str) -> str:
+    """Build a lakeFS API download URL for a components/-relative path."""
+    path = f"{shard_qid(run_id)}/{component_id}"
+    host = os.environ["LAKEFS_HOST"]
+    return (
+        f"{host}/api/v1/repositories/{repo}/refs/{LAKEFS_BRANCH}"
+        f"/objects?path={quote(path, safe='')}&presign=false"
     )
 
 
@@ -48,16 +57,25 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
 
     input_files, output_files = [], []
     for part in dataset.get("hasPart", []):
-        url  = part["@id"]
-        path = unquote(parse_qs(urlparse(url).query).get("path", [""])[0])
-        if f"{run_id}/input/" in path:
-            input_files.append(url)
-        elif f"{run_id}/output/" in path:
-            output_files.append(url)
+        part_id = part["@id"]
+        if part_id.startswith("components/"):
+            # New format: relative path → construct a downloadable lakeFS URL
+            url = _component_url(run_id, part_id, lakefs_run_repo)
+            if part_id.startswith("components/input/"):
+                input_files.append(url)
+            elif part_id.startswith("components/output/"):
+                output_files.append(url)
+        else:
+            # Legacy format: full lakeFS API URL already in @id
+            path = unquote(parse_qs(urlparse(part_id).query).get("path", [""])[0])
+            if f"{run_id}/input/" in path:
+                input_files.append(part_id)
+            elif f"{run_id}/output/" in path:
+                output_files.append(part_id)
 
     return {
         "model_name":       dataset.get("name",             ""),
-        "qid":              dataset.get("qid",              ""),
+        "qid":              dataset.get("qid", "") or dataset.get("identifier", ""),
         "git_commit":       dataset.get("git_commit",       ""),
         "docker_tag":       dataset.get("docker_tag",       ""),
         "run_timestamp":    dataset.get("datePublished",    ""),

@@ -5,7 +5,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
-CKAN_URL = os.environ["CKAN_HOST"]
+def _ckan_url() -> str:
+    return os.environ["CKAN_HOST"]
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ def _parse_json(r: requests.Response, context: str) -> dict:
 
 def _ckan_api(action: str, payload: dict) -> dict:
     r = requests.post(
-        f"{CKAN_URL}/api/3/action/{action}",
+        f"{_ckan_url()}/api/3/action/{action}",
         headers=_ckan_headers(),
         json=payload,
     )
@@ -37,7 +38,7 @@ def _ckan_api(action: str, payload: dict) -> dict:
 
 def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, description: str) -> None:
     r = requests.post(
-        f"{CKAN_URL}/api/3/action/resource_create",
+        f"{_ckan_url()}/api/3/action/resource_create",
         headers=_ckan_headers(),
         data={
             "package_id":  pkg_id,
@@ -54,7 +55,7 @@ def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, descriptio
 
 def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
-    r = requests.get(f"{CKAN_URL}/api/3/action/vocabulary_list")
+    r = requests.get(f"{_ckan_url()}/api/3/action/vocabulary_list")
     return {v["name"]: v["id"] for v in _parse_json(r, "vocabulary_list")["result"]}
 
 
@@ -75,7 +76,7 @@ def _ckan_delete_run(run_id: str) -> None:
 def _ckan_run_exists(run_id: str) -> bool:
     """Return True if a CKAN dataset with extras_run_id == run_id already exists."""
     r = requests.get(
-        f"{CKAN_URL}/api/3/action/package_search",
+        f"{_ckan_url()}/api/3/action/package_search",
         params={"q": f"extras_run_id:{run_id}", "rows": 1},
     )
     return _parse_json(r, "package_search")["result"]["count"] > 0
@@ -104,7 +105,7 @@ def create_model(
     standard CKAN url field (shown as 'Source'). The description includes a
     'Browse all runs' link pointing to the filtered run search.
     """
-    r = requests.get(f"{CKAN_URL}/api/3/action/package_show?id={name}")
+    r = requests.get(f"{_ckan_url()}/api/3/action/package_show?id={name}")
     body = _parse_json(r, "package_show")
     if body["success"]:
         return body["result"]
@@ -113,7 +114,7 @@ def create_model(
     return _ckan_api("package_create", {
         "name":      name,
         "title":     name,
-        "notes":     f"{description}\n\n### [Browse all runs →]({CKAN_URL}/dataset?q=extras_model:{name})",
+        "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model:{name})",
         "owner_org": "episerve",
         "url":       git_repo,
         "groups":    [{"name": "type-model"}],

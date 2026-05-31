@@ -14,15 +14,25 @@ def _ckan_headers() -> dict:
     return {"Authorization": os.environ["CKAN_API_TOKEN"]}
 
 
+def _parse_json(r: requests.Response, context: str) -> dict:
+    try:
+        return r.json()
+    except Exception:
+        raise RuntimeError(
+            f"CKAN {context} returned non-JSON (HTTP {r.status_code} from {r.url}): {r.text[:200]!r}"
+        )
+
+
 def _ckan_api(action: str, payload: dict) -> dict:
     r = requests.post(
         f"{CKAN_URL}/api/3/action/{action}",
         headers=_ckan_headers(),
         json=payload,
-    ).json()
-    if not r["success"]:
-        raise RuntimeError(f"CKAN {action} failed: {r['error']}")
-    return r["result"]
+    )
+    body = _parse_json(r, action)
+    if not body["success"]:
+        raise RuntimeError(f"CKAN {action} failed: {body['error']}")
+    return body["result"]
 
 
 def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, description: str) -> None:
@@ -36,15 +46,16 @@ def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, descriptio
             "description": description,
         },
         files={"upload": (filename, content, "application/json")},
-    ).json()
-    if not r["success"]:
-        raise RuntimeError(f"CKAN resource_create (upload) failed: {r['error']}")
+    )
+    body = _parse_json(r, "resource_create (upload)")
+    if not body["success"]:
+        raise RuntimeError(f"CKAN resource_create (upload) failed: {body['error']}")
 
 
 def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
-    return {v["name"]: v["id"] for v in
-        requests.get(f"{CKAN_URL}/api/3/action/vocabulary_list").json()["result"]}
+    r = requests.get(f"{CKAN_URL}/api/3/action/vocabulary_list")
+    return {v["name"]: v["id"] for v in _parse_json(r, "vocabulary_list")["result"]}
 
 
 def _filename_from_url(url: str) -> str:
@@ -67,7 +78,7 @@ def _ckan_run_exists(run_id: str) -> bool:
         f"{CKAN_URL}/api/3/action/package_search",
         params={"q": f"extras_run_id:{run_id}", "rows": 1},
     )
-    return r.json()["result"]["count"] > 0
+    return _parse_json(r, "package_search")["result"]["count"] > 0
 
 
 # ── Dataset creation ───────────────────────────────────────────────────────────
@@ -93,9 +104,10 @@ def create_model(
     standard CKAN url field (shown as 'Source'). The description includes a
     'Browse all runs' link pointing to the filtered run search.
     """
-    r = requests.get(f"{CKAN_URL}/api/3/action/package_show?id={name}").json()
-    if r["success"]:
-        return r["result"]
+    r = requests.get(f"{CKAN_URL}/api/3/action/package_show?id={name}")
+    body = _parse_json(r, "package_show")
+    if body["success"]:
+        return body["result"]
 
     vocabs = _vocabs()
     return _ckan_api("package_create", {

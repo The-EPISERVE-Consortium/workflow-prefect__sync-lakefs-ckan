@@ -1,6 +1,7 @@
 """CKAN helper functions and dataset creation utilities."""
 
 import os
+from functools import lru_cache
 from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
@@ -53,6 +54,7 @@ def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, descriptio
         raise RuntimeError(f"CKAN resource_create (upload) failed: {body['error']}")
 
 
+@lru_cache(maxsize=1)
 def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
     r = requests.get(f"{_ckan_url()}/api/3/action/vocabulary_list")

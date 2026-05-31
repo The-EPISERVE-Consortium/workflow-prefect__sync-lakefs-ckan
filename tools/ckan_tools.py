@@ -93,8 +93,8 @@ def create_model(
     input_format: str,
     output_format: str,
     lead_researcher: str,
-    domain: str,
-    modality: str,
+    domain: str = "",
+    modality: str = "",
     paper_doi: str = "",
 ) -> dict:
     """
@@ -118,10 +118,10 @@ def create_model(
         "owner_org": "episerve",
         "url":       git_repo,
         "groups":    [{"name": "type-model"}],
-        "tags": [
-            _vtag(vocabs, "domain",   domain),
-            _vtag(vocabs, "modality", modality),
-        ],
+        "tags": [t for t in [
+            _vtag(vocabs, "domain",   domain)   if domain   else None,
+            _vtag(vocabs, "modality", modality) if modality else None,
+        ] if t is not None],
         "extras": [
             {"key": "dataset_type",    "value": "model"},
             {"key": "docker_image",    "value": docker_image},
@@ -132,6 +132,24 @@ def create_model(
             {"key": "paper_doi",       "value": paper_doi},
         ],
     })
+
+
+def ensure_model(model_name: str, docker_tag: str = "") -> dict:
+    """
+    Ensure a model descriptor exists in CKAN, creating a placeholder if not.
+    Fields that are not derivable from run metadata are left empty for a human
+    to fill in via the CKAN UI.
+    """
+    return create_model(
+        name             = model_name,
+        description      = f"Auto-created placeholder for model '{model_name}'.",
+        git_repo         = "",
+        docker_image     = docker_tag,
+        algorithm        = "",
+        input_format     = "",
+        output_format    = "",
+        lead_researcher  = "",
+    )
 
 
 def create_model_run(

@@ -10,6 +10,7 @@ from tools.ckan_tools import (
     _ckan_run_exists,
     create_model,
     create_model_run,
+    ensure_model,
 )
 from tools.lakefs_tools import get_run_metadata
 from tools.sharding import shard_qid
@@ -96,6 +97,41 @@ class TestCreateModel:
             )
 
         assert result == new_pkg
+
+
+# ── ensure_model ──────────────────────────────────────────────────────────────
+
+class TestEnsureModel:
+    def test_creates_placeholder_when_not_found(self):
+        not_found_mock = MagicMock()
+        not_found_mock.json.return_value = {"success": False, "error": {"message": "Not found"}}
+        new_pkg = {"id": "new-id", "name": "ct-seg"}
+
+        def get_side_effect(url, **_):
+            if "package_show" in url:
+                return not_found_mock
+            return _vocab_get_response()
+
+        with patch("requests.get", side_effect=get_side_effect), \
+             patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
+            result = ensure_model("ct-seg", docker_tag="2.1.0")
+
+        assert result == new_pkg
+        payload = mock_post.call_args[1]["json"]
+        assert payload["name"] == "ct-seg"
+        assert payload["extras"][1] == {"key": "docker_image", "value": "2.1.0"}
+
+    def test_returns_existing_without_creating(self):
+        existing = {"id": "abc", "name": "ct-seg"}
+        get_mock = MagicMock()
+        get_mock.json.return_value = {"success": True, "result": existing}
+
+        with patch("requests.get", return_value=get_mock), \
+             patch("requests.post") as mock_post:
+            result = ensure_model("ct-seg")
+
+        assert result == existing
+        mock_post.assert_not_called()
 
 
 # ── create_model_run ───────────────────────────────────────────────────────────
@@ -217,9 +253,11 @@ class TestSyncRun:
 
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
+             patch.object(m, "ensure_model") as mock_ensure, \
              patch.object(m, "create_model_run") as mock_create:
             m._do_sync_run("run-001", "model-runs")
 
+        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_tag="2.1.0")
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
             run_id           = "run-001",
@@ -233,6 +271,21 @@ class TestSyncRun:
             input_files      = input_files,
             output_files     = output_files,
         )
+
+
+    def test_skips_ensure_model_when_model_name_empty(self):
+        metadata = {
+            "model_name": "", "qid": "", "git_commit": "", "docker_tag": "",
+            "run_timestamp": "", "status": "", "computation_time": "",
+            "rocrate_bytes": b"", "input_files": [], "output_files": [],
+        }
+        with patch.object(m, "_ckan_run_exists", return_value=False), \
+             patch.object(m, "get_run_metadata", return_value=metadata), \
+             patch.object(m, "ensure_model") as mock_ensure, \
+             patch.object(m, "create_model_run"):
+            m._do_sync_run("run-001", "model-runs")
+
+        mock_ensure.assert_not_called()
 
 
 # ── get_run_metadata ───────────────────────────────────────────────────────────

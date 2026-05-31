@@ -9,7 +9,7 @@ from lakefs.exceptions import ObjectNotFoundException
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from tools.ckan_tools import _ckan_delete_run, _ckan_run_exists, create_model_run
+from tools.ckan_tools import _ckan_delete_run, _ckan_run_exists, create_model_run, ensure_model
 from tools.lakefs_tools import get_run_metadata, list_runs
 
 
@@ -31,6 +31,9 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         return
 
     log(f"{run_id}: syncing...")
+    model_name = metadata.get("model_name", "")
+    if model_name:
+        ensure_model(model_name=model_name, docker_tag=metadata.get("docker_tag", ""))
     create_model_run(
         model_name       = metadata.get("model_name",       ""),
         run_id           = run_id,

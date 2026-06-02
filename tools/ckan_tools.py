@@ -84,6 +84,20 @@ def _ckan_run_exists(run_id: str) -> bool:
     return _parse_json(r, "package_search")["result"]["count"] > 0
 
 
+def _ckan_raw_dataset_exists(qid: str) -> bool:
+    """Return True if a CKAN dataset with extras_qid == qid already exists."""
+    r = requests.get(
+        f"{_ckan_url()}/api/3/action/package_search",
+        params={"q": f"extras_qid:{qid}", "rows": 1},
+    )
+    return _parse_json(r, "package_search")["result"]["count"] > 0
+
+
+def _ckan_delete_raw_dataset(qid: str) -> None:
+    """Delete a CKAN raw dataset by QID (no-op if it does not exist)."""
+    _ckan_api("package_delete", {"id": qid.lower()})
+
+
 # ── Dataset creation ───────────────────────────────────────────────────────────
 
 def create_model(
@@ -221,6 +235,52 @@ def create_model_run(
             "url":         url,
             "format":      filename.split(".")[-1].upper(),
             "description": "Output file",
+        })
+
+    return pkg
+
+
+def create_raw_dataset(
+    qid: str,
+    name: str,
+    description: str,
+    source_url: str,
+    modified: str,
+    components: list,
+    fdo_bytes: bytes,
+) -> dict:
+    """
+    Create a raw dataset in CKAN and attach all data files as resources.
+
+    fdo_bytes is uploaded as an actual file to CKAN.
+    components is a list of dicts with keys filename, url, and media_type.
+
+    The dataset is placed in the type-raw-data group.
+    """
+    pkg = _ckan_api("package_create", {
+        "name":      qid.lower(),
+        "title":     name,
+        "notes":     description,
+        "owner_org": "episerve",
+        "url":       source_url,
+        "groups":    [{"name": "type-raw-data"}],
+        "extras": [
+            {"key": "dataset_type", "value": "raw-data"},
+            {"key": "qid",          "value": qid},
+            {"key": "modified",     "value": modified},
+        ],
+    })
+
+    if fdo_bytes:
+        _ckan_upload_resource(pkg["id"], "fdo.json", fdo_bytes, "FDO metadata")
+
+    for comp in components:
+        _ckan_api("resource_create", {
+            "package_id":  pkg["id"],
+            "name":        comp["filename"],
+            "url":         comp["url"],
+            "format":      comp["filename"].split(".")[-1].upper(),
+            "description": "Data file",
         })
 
     return pkg

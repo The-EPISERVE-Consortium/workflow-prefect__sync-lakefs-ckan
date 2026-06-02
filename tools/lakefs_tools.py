@@ -3,7 +3,7 @@
 import json
 import os
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import lakefs
 
@@ -18,6 +18,12 @@ def _lakefs_client() -> lakefs.client.Client:
         username=os.environ["LAKEFS_ACCESS_KEY"],
         password=os.environ["LAKEFS_SECRET_KEY"],
     )
+
+
+def _lakefs_object_url(repo: str, path: str) -> str:
+    """Build a lakeFS object API URL for a file in the main branch."""
+    base = os.environ["LAKEFS_HOST"].rstrip("/")
+    return f"{base}/api/v1/repositories/{repo}/refs/{LAKEFS_BRANCH}/objects?path={quote(path, safe='')}&presign=false"
 
 
 def _doip_url(run_id: str, component_id: str) -> str:
@@ -104,4 +110,54 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "rocrate_bytes":    raw,
         "input_files":      input_files,
         "output_files":     output_files,
+    }
+
+
+def list_raw_datasets(lakefs_raw_repo: str) -> list:
+    """Return paths of all .fdo.json files in <lakefs_raw_repo>/main."""
+    client = _lakefs_client()
+    repo   = lakefs.Repository(lakefs_raw_repo, client=client)
+    branch = repo.branch(LAKEFS_BRANCH)
+    return [
+        entry.path
+        for entry in branch.objects()
+        if entry.path.endswith(".fdo.json")
+    ]
+
+
+def get_raw_dataset_metadata(fdo_path: str, lakefs_raw_repo: str) -> dict:
+    """Read .fdo.json and return a flat metadata dict including component file list."""
+    client = _lakefs_client()
+    repo   = lakefs.Repository(lakefs_raw_repo, client=client)
+    branch = repo.branch(LAKEFS_BRANCH)
+    obj    = branch.object(fdo_path)
+    with obj.reader() as f:
+        raw = f.read()
+    fdo = json.loads(raw)
+
+    kernel     = fdo.get("kernel",     {})
+    profile    = fdo.get("profile",    {})
+    provenance = fdo.get("provenance", {})
+
+    fdo_dir    = "/".join(fdo_path.split("/")[:-1])
+    components = []
+    for comp in kernel.get("fdo:hasComponent", []):
+        comp_id    = comp.get("componentId", "")
+        media_type = comp.get("mediaType",   "")
+        if comp_id:
+            file_path = f"{fdo_dir}/{comp_id}" if fdo_dir else comp_id
+            components.append({
+                "filename":   comp_id,
+                "url":        _lakefs_object_url(lakefs_raw_repo, file_path),
+                "media_type": media_type,
+            })
+
+    return {
+        "qid":         fdo.get("@id",                          ""),
+        "name":        profile.get("name",                     ""),
+        "description": profile.get("description",             ""),
+        "source_url":  profile.get("url",                     ""),
+        "modified":    provenance.get("prov:generatedAtTime", ""),
+        "components":  components,
+        "fdo_bytes":   raw,
     }

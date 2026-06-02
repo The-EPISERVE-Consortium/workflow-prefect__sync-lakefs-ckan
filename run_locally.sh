@@ -14,10 +14,10 @@ export DOIP_HOST=https://doip.episerve.zib.de
 source .venv/bin/activate
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage: run_locally.sh --model-runs|--raw [--force-recreate]"
+  echo "Usage: run_locally.sh --model-runs|--processed [--force-recreate]"
   echo ""
   echo "  --model-runs      Sync the model-runs repo"
-  echo "  --raw             Sync the data-raw repo"
+  echo "  --processed       Sync the data-processed repo"
   echo "  --force-recreate  Overwrite datasets that already exist in CKAN"
   exit 0
 fi
@@ -29,17 +29,17 @@ for arg in "$@"; do
   case "$arg" in
     --force-recreate) FORCE=True ;;
     --model-runs)     REPO=model-runs ;;
-    --raw)            REPO=data-processed ;;
+    --processed)      REPO=data-processed ;;
     *) echo "Unknown argument: $arg"; exit 1 ;;
   esac
 done
 
 if [[ -z "$REPO" ]]; then
-  echo "Error: one of --model-runs or --raw is required"
+  echo "Error: one of --model-runs or --processed is required"
   exit 1
 fi
 
-if [[ "$REPO" == "data-raw" ]]; then
+if [[ "$REPO" == "data-processed" ]]; then
 python -c "
 from tools.lakefs_tools import list_raw_datasets
 from flow.sync_ckan_with_lakefs_raw import _do_sync_raw_dataset

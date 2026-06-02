@@ -158,7 +158,6 @@ class TestCreateModelRun:
                 model_name       = "ct-seg",
                 run_id           = "run-2026-001",
                 qid              = "Q1748526042817",
-                git_commit       = "a3f9c12",
                 docker_tag       = "2.1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
                 status           = "success",
@@ -189,7 +188,6 @@ class TestCreateModelRun:
                 model_name       = "ct-seg",
                 run_id           = "run-multi",
                 qid              = "Q1748526042817",
-                git_commit       = "abc",
                 docker_tag       = "1.0",
                 run_timestamp    = "2026-05-15T11:00:00Z",
                 status           = "success",
@@ -241,7 +239,6 @@ class TestSyncRun:
         metadata = {
             "model_name":       "ct-seg",
             "qid":              "Q1748526042817",
-            "git_commit":       "a3f9c12",
             "docker_tag":       "2.1.0",
             "run_timestamp":    "2026-05-15T11:00:00Z",
             "status":           "success",
@@ -262,7 +259,6 @@ class TestSyncRun:
             model_name       = "ct-seg",
             run_id           = "run-001",
             qid              = "Q1748526042817",
-            git_commit       = "a3f9c12",
             docker_tag       = "2.1.0",
             run_timestamp    = "2026-05-15T11:00:00Z",
             status           = "success",
@@ -275,7 +271,7 @@ class TestSyncRun:
 
     def test_skips_ensure_model_when_model_name_empty(self):
         metadata = {
-            "model_name": "", "qid": "", "git_commit": "", "docker_tag": "",
+            "model_name": "", "qid": "", "docker_tag": "",
             "run_timestamp": "", "status": "", "computation_time": "",
             "rocrate_bytes": b"", "input_files": [], "output_files": [],
         }
@@ -307,23 +303,39 @@ _RO_CRATE = {
         {
             "@id": "ro-crate-metadata.json",
             "@type": "CreativeWork",
-            "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"},
+            "conformsTo": [
+                {"@id": "https://w3id.org/ro/crate/1.1"},
+                {"@id": "https://w3id.org/ro/wfrun/process/0.4"},
+            ],
             "about": {"@id": "./"},
         },
         {
             "@id": "./",
             "@type": "Dataset",
-            "name":             "ct-seg",
-            "description":      "Model run of ct-seg (tag: 2.1.0)",
-            "datePublished":    "2026-05-15T11:00:00Z",
-            "license":          "unknown",
-            "identifier":       "Q1748526042817",
-            "qid":              "Q1748526042817",
-            "git_commit":       "",
-            "docker_tag":       "2.1.0",
-            "status":           "success",
-            "computation_time": 42,
-            "hasPart": [{"@id": _INPUT_REL}, {"@id": _OUTPUT_REL}],
+            "name":          "ct-seg",
+            "description":   "Model run of ct-seg",
+            "datePublished": "2026-05-15T11:00:00Z",
+            "license":       "unknown",
+            "identifier":    "Q1748526042817",
+            "hasPart":       [{"@id": _INPUT_REL}, {"@id": _OUTPUT_REL}],
+            "mentions":      [{"@id": "#run"}],
+        },
+        {
+            "@id":          "#run",
+            "@type":        "CreateAction",
+            "instrument":   {"@id": "#ct-seg"},
+            "object":       [{"@id": _INPUT_REL}],
+            "result":       [{"@id": _OUTPUT_REL}],
+            "startTime":    "2026-05-15T11:00:00Z",
+            "endTime":      "2026-05-15T11:00:42Z",
+            "actionStatus": {"@id": "https://schema.org/CompletedActionStatus"},
+        },
+        {
+            "@id":             "#ct-seg",
+            "@type":           "SoftwareApplication",
+            "name":            "ct-seg",
+            "softwareVersion": "2.1.0",
+            "url":             "ghcr.io/example/ct-seg",
         },
         {"@id": _INPUT_REL,  "@type": "File", "name": "config.yaml", "encodingFormat": "application/yaml"},
         {"@id": _OUTPUT_REL, "@type": "File", "name": "result.nii"},
@@ -356,7 +368,6 @@ class TestGetRunMetadata:
         import json as _json
         assert result["model_name"]       == "ct-seg"
         assert result["qid"]              == "Q1748526042817"
-        assert result["git_commit"]       == ""
         assert result["docker_tag"]       == "2.1.0"
         assert result["run_timestamp"]    == "2026-05-15T11:00:00Z"
         assert result["status"]           == "success"
@@ -381,8 +392,14 @@ class TestGetRunMetadata:
         sparse_crate = {
             "@context": "https://w3id.org/ro/crate/1.1/context",
             "@graph": [
-                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
-                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {
+                    "@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                    "conformsTo": [
+                        {"@id": "https://w3id.org/ro/crate/1.1"},
+                        {"@id": "https://w3id.org/ro/wfrun/process/0.4"},
+                    ],
+                    "about": {"@id": "./"},
+                },
                 {"@id": "./", "@type": "Dataset", "name": "my-model"},
             ],
         }
@@ -392,23 +409,28 @@ class TestGetRunMetadata:
             mock_repo.return_value.branch.return_value.object.return_value = obj
             result = get_run_metadata(_QID, "model-runs")
 
-        assert result["model_name"]   == "my-model"
-        assert result["qid"]          == ""
-        assert result["git_commit"]   == ""
-        assert result["docker_tag"]   == ""
-        assert result["run_timestamp"] == ""
-        assert result["status"]        == ""
+        assert result["model_name"]       == "my-model"
+        assert result["qid"]              == ""
+        assert result["docker_tag"]       == ""
+        assert result["run_timestamp"]    == ""
+        assert result["status"]           == ""
         assert result["computation_time"] == ""
-        assert result["rocrate_bytes"] != b""
-        assert result["input_files"]   == []
-        assert result["output_files"]  == []
+        assert result["rocrate_bytes"]    != b""
+        assert result["input_files"]      == []
+        assert result["output_files"]     == []
 
     def test_identifier_used_as_qid_fallback(self):
         crate = {
             "@context": "https://w3id.org/ro/crate/1.1/context",
             "@graph": [
-                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
-                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {
+                    "@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                    "conformsTo": [
+                        {"@id": "https://w3id.org/ro/crate/1.1"},
+                        {"@id": "https://w3id.org/ro/wfrun/process/0.4"},
+                    ],
+                    "about": {"@id": "./"},
+                },
                 {"@id": "./", "@type": "Dataset", "name": "my-model", "identifier": "Q9999"},
             ],
         }
@@ -425,8 +447,14 @@ class TestGetRunMetadata:
         legacy_crate = {
             "@context": "https://w3id.org/ro/crate/1.1/context",
             "@graph": [
-                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork",
-                 "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"}, "about": {"@id": "./"}},
+                {
+                    "@id": "ro-crate-metadata.json", "@type": "CreativeWork",
+                    "conformsTo": [
+                        {"@id": "https://w3id.org/ro/crate/1.1"},
+                        {"@id": "https://w3id.org/ro/wfrun/process/0.4"},
+                    ],
+                    "about": {"@id": "./"},
+                },
                 {
                     "@id": "./",
                     "@type": "Dataset",
@@ -443,3 +471,24 @@ class TestGetRunMetadata:
 
         assert result["input_files"]  == [_LEGACY_INPUT_URL]
         assert result["output_files"] == [_LEGACY_OUTPUT_URL]
+
+    def test_raises_on_missing_graph(self):
+        obj = self._mock_object({"@context": "https://w3id.org/ro/crate/1.1/context"})
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            with pytest.raises(ValueError, match="no @graph"):
+                get_run_metadata(_QID, "model-runs")
+
+    def test_raises_on_missing_root_dataset(self):
+        obj = self._mock_object({
+            "@context": "https://w3id.org/ro/crate/1.1/context",
+            "@graph": [
+                {"@id": "ro-crate-metadata.json", "@type": "CreativeWork"},
+            ],
+        })
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            with pytest.raises(ValueError, match="no root Dataset entry"):
+                get_run_metadata(_QID, "model-runs")

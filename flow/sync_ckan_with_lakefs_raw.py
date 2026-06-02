@@ -12,9 +12,9 @@ from tools.ckan_tools import _ckan_delete_raw_dataset, _ckan_raw_dataset_exists,
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 
 
-def _do_sync_raw_dataset(fdo_path: str, lakefs_raw_repo: str, log=print, force_recreate: bool = False) -> None:
+def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, force_recreate: bool = False) -> None:
     try:
-        metadata = get_raw_dataset_metadata(fdo_path, lakefs_raw_repo)
+        metadata = get_raw_dataset_metadata(fdo_path, lakefs_processed_repo)
     except Exception as e:
         log(f"{fdo_path}: skipping ({e})")
         return
@@ -45,20 +45,20 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_raw_repo: str, log=print, force_r
 
 
 @task
-def sync_raw_dataset(fdo_path: str, lakefs_raw_repo: str, force_recreate: bool = False) -> None:
+def sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, force_recreate: bool = False) -> None:
     logger = get_run_logger()
-    _do_sync_raw_dataset(fdo_path, lakefs_raw_repo, log=logger.info, force_recreate=force_recreate)
+    _do_sync_raw_dataset(fdo_path, lakefs_processed_repo, log=logger.info, force_recreate=force_recreate)
 
 
 @flow
-def sync_ckan_with_lakefs_raw(lakefs_raw_repo: str = "data-raw", force_recreate: bool = False) -> None:
+def sync_ckan_with_lakefs_raw(lakefs_processed_repo: str = "data-processed", force_recreate: bool = False) -> None:
     """
     Scan the lakeFS data-raw repository and register any new datasets in CKAN.
     Intended to run on a schedule as a Prefect deployment.
     """
     logger    = get_run_logger()
-    fdo_paths = list_raw_datasets(lakefs_raw_repo)
+    fdo_paths = list_raw_datasets(lakefs_processed_repo)
     logger.info(f"Found {len(fdo_paths)} datasets in lakeFS")
-    futures = [sync_raw_dataset.submit(fdo_path, lakefs_raw_repo, force_recreate) for fdo_path in fdo_paths]
+    futures = [sync_raw_dataset.submit(fdo_path, lakefs_processed_repo, force_recreate) for fdo_path in fdo_paths]
     for future in futures:
         future.result()

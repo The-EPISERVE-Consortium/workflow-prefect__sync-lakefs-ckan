@@ -113,10 +113,10 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     }
 
 
-def list_raw_datasets(lakefs_raw_repo: str) -> list:
-    """Return paths of all .fdo.json files in <lakefs_raw_repo>/main."""
+def list_raw_datasets(lakefs_processed_repo: str) -> list:
+    """Return paths of all .fdo.json files in <lakefs_processed_repo>/main."""
     client = _lakefs_client()
-    repo   = lakefs.Repository(lakefs_raw_repo, client=client)
+    repo   = lakefs.Repository(lakefs_processed_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     return [
         entry.path
@@ -125,10 +125,10 @@ def list_raw_datasets(lakefs_raw_repo: str) -> list:
     ]
 
 
-def get_raw_dataset_metadata(fdo_path: str, lakefs_raw_repo: str) -> dict:
+def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
     """Read .fdo.json and return a flat metadata dict including component file list."""
     client = _lakefs_client()
-    repo   = lakefs.Repository(lakefs_raw_repo, client=client)
+    repo   = lakefs.Repository(lakefs_processed_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
     obj    = branch.object(fdo_path)
     with obj.reader() as f:

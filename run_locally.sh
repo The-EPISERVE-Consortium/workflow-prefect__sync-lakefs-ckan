@@ -29,7 +29,7 @@ for arg in "$@"; do
   case "$arg" in
     --force-recreate) FORCE=True ;;
     --model-runs)     REPO=model-runs ;;
-    --raw)            REPO=data-raw ;;
+    --raw)            REPO=data-processed ;;
     *) echo "Unknown argument: $arg"; exit 1 ;;
   esac
 done
@@ -44,7 +44,7 @@ python -c "
 from tools.lakefs_tools import list_raw_datasets
 from flow.sync_ckan_with_lakefs_raw import _do_sync_raw_dataset
 
-repo = 'data-raw'
+repo = 'data-processed'
 force_recreate = $FORCE
 for fdo_path in list_raw_datasets(repo):
     _do_sync_raw_dataset(fdo_path, repo, force_recreate=force_recreate)

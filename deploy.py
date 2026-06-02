@@ -48,6 +48,6 @@ if __name__ == "__main__":
             "image_pull_policy": "Always",
         },
         parameters={
-            "lakefs_raw_repo": os.getenv("LAKEFS_RAW_REPO", "data-raw"),
+            "lakefs_processed_repo": os.getenv("LAKEFS_PROCESSED_REPO", "data-processed"),
         },
     )

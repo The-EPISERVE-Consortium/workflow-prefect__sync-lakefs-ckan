@@ -22,10 +22,7 @@ def required_env(monkeypatch):
 
 _QID      = "Q1780428359320"
 _FDO_PATH = "incidence/covid/RKI__covid_germany.fdo.json"
-_FDO_DATA_URL = (
-    "http://test-lakefs/api/v1/repositories/data-raw/refs/main/objects"
-    "?path=incidence%2Fcovid%2FRKI__covid_germany.csv&presign=false"
-)
+_FDO_DATA_URL = "http://test-doip/doip/retrieve/Q1780428359320/RKI__covid_germany.csv"
 
 _FDO = {
     "@context": ["https://w3id.org/fdo/context/v1"],
@@ -107,14 +104,14 @@ class TestGetRawDatasetMetadata:
 
         branch_mock.object.assert_called_once_with(_FDO_PATH)
 
-    def test_component_url_uses_fdo_directory(self):
+    def test_component_url_uses_doip(self):
         obj = _mock_object(_FDO)
         with patch("tools.lakefs_tools._lakefs_client"), \
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
             mock_repo.return_value.branch.return_value.object.return_value = obj
             result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
 
-        assert "incidence%2Fcovid%2FRKI__covid_germany.csv" in result["components"][0]["url"]
+        assert result["components"][0]["url"] == _FDO_DATA_URL
 
     def test_empty_components_when_none_in_kernel(self):
         fdo = {**_FDO, "kernel": {**_FDO["kernel"], "fdo:hasComponent": []}}

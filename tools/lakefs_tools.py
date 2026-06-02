@@ -135,25 +135,25 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_raw_repo: str) -> dict:
         raw = f.read()
     fdo = json.loads(raw)
 
-    kernel     = fdo.get("kernel",     {})
-    profile    = fdo.get("profile",    {})
-    provenance = fdo.get("provenance", {})
+    qid        = fdo.get("@id",          "")
+    kernel     = fdo.get("kernel",        {})
+    profile    = fdo.get("profile",       {})
+    provenance = fdo.get("provenance",    {})
+    doip_base  = os.environ["DOIP_HOST"]
 
-    fdo_dir    = "/".join(fdo_path.split("/")[:-1])
     components = []
     for comp in kernel.get("fdo:hasComponent", []):
         comp_id    = comp.get("componentId", "")
         media_type = comp.get("mediaType",   "")
         if comp_id:
-            file_path = f"{fdo_dir}/{comp_id}" if fdo_dir else comp_id
             components.append({
                 "filename":   comp_id,
-                "url":        _lakefs_object_url(lakefs_raw_repo, file_path),
+                "url":        f"{doip_base}/doip/retrieve/{qid}/{comp_id}",
                 "media_type": media_type,
             })
 
     return {
-        "qid":         fdo.get("@id",                          ""),
+        "qid":         qid,
         "name":        profile.get("name",                     ""),
         "description": profile.get("description",             ""),
         "source_url":  profile.get("url",                     ""),

@@ -105,6 +105,7 @@ def create_model(
     description: str,
     git_repo: str,
     docker_image: str,
+    docker_tag: str,
     algorithm: str,
     input_format: str,
     output_format: str,
@@ -141,6 +142,7 @@ def create_model(
         "extras": [
             {"key": "dataset_type",    "value": "model"},
             {"key": "docker_image",    "value": docker_image},
+            {"key": "docker_tag",      "value": docker_tag},
             {"key": "algorithm",       "value": algorithm},
             {"key": "input_format",    "value": input_format},
             {"key": "output_format",   "value": output_format},
@@ -159,8 +161,9 @@ def ensure_model(model_name: str, docker_tag: str = "") -> dict:
     return create_model(
         name             = model_name,
         description      = f"Auto-created placeholder for model '{model_name}'.",
-        git_repo         = "",
-        docker_image     = docker_tag,
+        git_repo         = f"https://github.com/The-EPISERVE-Consortium/{model_name}",
+        docker_image     = f"ghcr.io/the-episerve-consortium/{model_name}",
+        docker_tag       = docker_tag,
         algorithm        = "",
         input_format     = "",
         output_format    = "",

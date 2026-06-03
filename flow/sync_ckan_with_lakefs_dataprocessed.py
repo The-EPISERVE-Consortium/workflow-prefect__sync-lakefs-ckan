@@ -1,5 +1,5 @@
 """
-Prefect flow that periodically scans the lakeFS data-raw repository and
+Prefect flow that periodically scans the lakeFS data-processed repository and
 registers any new datasets in CKAN. Each dataset has an .fdo.json sidecar
 file that contains the metadata. The flow reads the FDO metadata, uploads
 it to CKAN, and registers all data files as resources.
@@ -51,9 +51,9 @@ def sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, force_recreate: 
 
 
 @flow
-def sync_ckan_with_lakefs_raw(lakefs_processed_repo: str = "data-processed", force_recreate: bool = False) -> None:
+def sync_ckan_with_lakefs_dataprocessed(lakefs_processed_repo: str = "data-processed", force_recreate: bool = False) -> None:
     """
-    Scan the lakeFS data-raw repository and register any new datasets in CKAN.
+    Scan the lakeFS data-processed repository and register any new datasets in CKAN.
     Intended to run on a schedule as a Prefect deployment.
     """
     logger    = get_run_logger()

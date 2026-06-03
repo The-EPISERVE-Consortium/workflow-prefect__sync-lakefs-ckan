@@ -1,11 +1,11 @@
-"""Unit tests for sync_ckan_with_lakefs."""
+"""Unit tests for sync_ckan_with_lakefs_modelruns."""
 
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import flow.sync_ckan_with_lakefs as m
+import flow.sync_ckan_with_lakefs_modelruns as m
 from tools.ckan_tools import (
     _ckan_run_exists,
     create_model,

@@ -1,11 +1,11 @@
-"""Unit tests for sync_ckan_with_lakefs_raw."""
+"""Unit tests for sync_ckan_with_lakefs_dataprocessed."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import flow.sync_ckan_with_lakefs_raw as m
+import flow.sync_ckan_with_lakefs_dataprocessed as m
 from tools.ckan_tools import _ckan_raw_dataset_exists, create_raw_dataset
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 

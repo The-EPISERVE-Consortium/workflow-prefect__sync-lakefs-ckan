@@ -12,8 +12,8 @@ import os
 
 from prefect.runner.storage import GitRepository
 
-from flow.sync_ckan_with_lakefs import sync_ckan_with_lakefs
-from flow.sync_ckan_with_lakefs_raw import sync_ckan_with_lakefs_raw
+from flow.sync_ckan_with_lakefs_modelruns import sync_ckan_with_lakefs
+from flow.sync_ckan_with_lakefs_dataprocessed import sync_ckan_with_lakefs_dataprocessed
 
 GITHUB_REPO_URL = "https://github.com/The-EPISERVE-Consortium/workflow-prefect__sync-lakefs-ckan"
 DOCKER_IMAGE    = "ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest"
@@ -24,9 +24,9 @@ if __name__ == "__main__":
 
     sync_ckan_with_lakefs.from_source(
         source=source,
-        entrypoint="flow/sync_ckan_with_lakefs.py:sync_ckan_with_lakefs",
+        entrypoint="flow/sync_ckan_with_lakefs_modelruns.py:sync_ckan_with_lakefs",
     ).deploy(
-        name=os.getenv("DEPLOYMENT_NAME", "sync-ckan-with-lakefs"),
+        name=os.getenv("DEPLOYMENT_NAME", "sync-ckan-with-lakefs-modelruns"),
         work_pool_name=WORK_POOL_NAME,
         job_variables={
             "image": DOCKER_IMAGE,
@@ -37,11 +37,11 @@ if __name__ == "__main__":
         },
     )
 
-    sync_ckan_with_lakefs_raw.from_source(
+    sync_ckan_with_lakefs_dataprocessed.from_source(
         source=source,
-        entrypoint="flow/sync_ckan_with_lakefs_raw.py:sync_ckan_with_lakefs_raw",
+        entrypoint="flow/sync_ckan_with_lakefs_dataprocessed.py:sync_ckan_with_lakefs_dataprocessed",
     ).deploy(
-        name=os.getenv("DEPLOYMENT_NAME_RAW", "sync-ckan-with-lakefs-raw"),
+        name=os.getenv("DEPLOYMENT_NAME_DATAPROCESSED", "sync-ckan-with-lakefs-dataprocessed"),
         work_pool_name=WORK_POOL_NAME,
         job_variables={
             "image": DOCKER_IMAGE,

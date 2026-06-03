@@ -11,6 +11,12 @@ export LAKEFS_HOST=https://lake-episerve.zib.de/
 export DOIP_HOST=https://doip.episerve.zib.de
 
 # Run
+if [ ! -d .venv ]; then
+    echo "Creating virtual environment..."
+    python -m venv .venv
+    .venv/bin/pip install -q -r requirements.txt
+fi
+
 source .venv/bin/activate
 
 if [[ $# -eq 0 ]]; then

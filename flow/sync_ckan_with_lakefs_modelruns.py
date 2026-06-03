@@ -27,7 +27,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         log(f"{run_id}: not a valid QID, skipping.")
         return
     except ObjectNotFoundException:
-        log(f"{run_id}: no ro-crate-metadata.json, skipping.")
+        log(f"{run_id}: no FDO metadata file, skipping.")
         return
 
     log(f"{run_id}: syncing...")
@@ -42,7 +42,8 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         run_timestamp    = metadata.get("run_timestamp",    ""),
         status           = metadata.get("status",           ""),
         computation_time = metadata.get("computation_time", ""),
-        rocrate_bytes    = metadata.get("rocrate_bytes",    b""),
+        fdo_bytes        = metadata.get("fdo_bytes",      b""),
+        rocrate_bytes    = metadata.get("rocrate_bytes", b""),
         input_files      = metadata.get("input_files",  []),
         output_files     = metadata.get("output_files", []),
     )

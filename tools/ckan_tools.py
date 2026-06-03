@@ -176,6 +176,7 @@ def create_model_run(
     run_timestamp: str,
     status: str,
     computation_time: str,
+    fdo_bytes: bytes,
     rocrate_bytes: bytes,
     input_files: list,
     output_files: list,
@@ -214,6 +215,8 @@ def create_model_run(
         ],
     })
 
+    if fdo_bytes:
+        _ckan_upload_resource(pkg["id"], f"{qid}.fdo.json", fdo_bytes, "FDO metadata")
     if rocrate_bytes:
         _ckan_upload_resource(pkg["id"], "ro-crate-metadata.json", rocrate_bytes, "RO-Crate metadata")
 

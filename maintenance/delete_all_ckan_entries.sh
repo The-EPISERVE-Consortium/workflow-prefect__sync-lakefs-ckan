@@ -6,9 +6,7 @@ cd "$(dirname "$0")/.."
 export CKAN_API_TOKEN=$(kubectl get secret ckan-credentials -o jsonpath='{.data.ckan-api-token}' | base64 -d)
 export CKAN_HOST=https://data.episerve.zib.de
 
-source .venv/bin/activate
-
-python -c "
+python3 -c "
 import os, sys, requests
 
 ckan_host = os.environ['CKAN_HOST']

@@ -42,7 +42,7 @@ fi
 if [[ "$REPO" == "data-processed" ]]; then
 python -c "
 from tools.lakefs_tools import list_raw_datasets
-from flow.sync_ckan_with_lakefs_raw import _do_sync_raw_dataset
+from flow.sync_ckan_with_lakefs_dataprocessed import _do_sync_raw_dataset
 
 repo = 'data-processed'
 force_recreate = $FORCE
@@ -52,7 +52,7 @@ for fdo_path in list_raw_datasets(repo):
 else
 python -c "
 from tools.lakefs_tools import list_runs
-from flow.sync_ckan_with_lakefs import _do_sync_run
+from flow.sync_ckan_with_lakefs_modelruns import _do_sync_run
 
 repo = 'model-runs'
 force_recreate = $FORCE

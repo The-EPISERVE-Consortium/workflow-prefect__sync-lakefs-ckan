@@ -152,7 +152,7 @@ def create_model(
     })
 
 
-def ensure_model(model_name: str, docker_tag: str = "") -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "") -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     Fields that are not derivable from run metadata are left empty for a human
@@ -161,8 +161,8 @@ def ensure_model(model_name: str, docker_tag: str = "") -> dict:
     return create_model(
         name             = model_name,
         description      = f"Auto-created placeholder for model '{model_name}'.",
-        git_repo         = f"https://github.com/The-EPISERVE-Consortium/{model_name}",
-        docker_image     = f"ghcr.io/the-episerve-consortium/{model_name}",
+        git_repo         = "",
+        docker_image     = docker_image,
         docker_tag       = docker_tag,
         algorithm        = "",
         input_format     = "",

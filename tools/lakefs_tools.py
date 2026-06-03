@@ -85,6 +85,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
 
     return {
         "model_name":       profile.get("name",                     ""),
+        "model_image":      profile.get("url",                      ""),
         "qid":              qid,
         "docker_tag":       docker_tag,
         "run_timestamp":    kernel.get("modified",                  ""),

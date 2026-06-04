@@ -1,6 +1,7 @@
 """CKAN helper functions and dataset creation utilities."""
 
 import os
+from datetime import datetime
 from functools import lru_cache
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -59,6 +60,13 @@ def _vocabs() -> dict:
     """Return {vocab_name: vocab_id} for all registered tag vocabularies."""
     r = requests.get(f"{_ckan_url()}/api/3/action/vocabulary_list")
     return {v["name"]: v["id"] for v in _parse_json(r, "vocabulary_list")["result"]}
+
+
+def _fmt_ts(ts: str) -> str:
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y%m%d-%H%M")
+    except (ValueError, TypeError):
+        return ts
 
 
 def _filename_from_url(url: str) -> str:
@@ -200,7 +208,7 @@ def create_model_run(
 
     pkg = _ckan_api("package_create", {
         "name":      run_id.lower(),
-        "title":     f"{model_name} · {run_id}",
+        "title":     f"Model-run with model: {model_name} [{_fmt_ts(run_timestamp)}]",
         "notes":     f"Model run {run_id} of {model_name}.",
         "owner_org": "episerve",
         "groups":    [{"name": "type-model-run"}],

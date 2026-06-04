@@ -23,8 +23,8 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
 
     try:
         metadata = get_run_metadata(run_id, lakefs_run_repo)
-    except ValueError:
-        log(f"{run_id}: not a valid QID, skipping.")
+    except ValueError as e:
+        log(f"{run_id}: skipping — {e}")
         return
     except ObjectNotFoundException:
         log(f"{run_id}: no FDO metadata file, skipping.")

@@ -60,6 +60,8 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     qid = fdo.get("@id", "")
     if not qid:
         raise ValueError(f"{run_id}.fdo.json has no @id")
+    if qid != run_id:
+        raise ValueError(f"{run_id}.fdo.json @id '{qid}' does not match run_id")
 
     kernel     = fdo.get("kernel",     {})
     profile    = fdo.get("profile",    {})
@@ -67,6 +69,13 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
 
     attribution = provenance.get("prov:wasAttributedTo", "")
     docker_tag  = attribution.rsplit(":", 1)[-1] if ":" in attribution else ""
+
+    model_name  = profile.get("name", "")
+    model_image = profile.get("url",  "")
+    if model_name and docker_tag and model_name == docker_tag:
+        raise ValueError(f"{run_id}.fdo.json profile.name '{model_name}' looks like a docker tag")
+    if model_image and "/" not in model_image:
+        raise ValueError(f"{run_id}.fdo.json profile.url '{model_image}' is not a valid docker image URI")
 
     input_files, output_files = [], []
     for comp in kernel.get("fdo:hasComponent", []):
@@ -84,8 +93,8 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         rocrate_bytes = b""
 
     return {
-        "model_name":       profile.get("name",                     ""),
-        "model_image":      profile.get("url",                      ""),
+        "model_name":       model_name,
+        "model_image":      model_image,
         "qid":              qid,
         "docker_tag":       docker_tag,
         "run_timestamp":    kernel.get("modified",                  ""),

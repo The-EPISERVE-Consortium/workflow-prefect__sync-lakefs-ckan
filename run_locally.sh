@@ -20,32 +20,66 @@ fi
 source .venv/bin/activate
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage: run_locally.sh --model-runs|--processed [--force-recreate]"
+  echo "Usage: run_locally.sh --model-runs|--processed|--models <image> [<image> ...] [--force-recreate]"
   echo ""
   echo "  --model-runs      Sync the model-runs repo"
   echo "  --processed       Sync the data-processed repo"
+  echo "  --models          Register one or more model placeholders in CKAN by docker image URI"
   echo "  --force-recreate  Overwrite datasets that already exist in CKAN"
+  echo ""
+  echo "Examples:"
+  echo "  run_locally.sh --model-runs"
+  echo "  run_locally.sh --processed --force-recreate"
+  echo "  run_locally.sh --models ghcr.io/the-episerve-consortium/model__prediction__grippeweb__baseline-nullmodel:latest"
   exit 0
 fi
 
 FORCE=False
-REPO=
+MODE=
+IMAGES=()
 
 for arg in "$@"; do
   case "$arg" in
     --force-recreate) FORCE=True ;;
-    --model-runs)     REPO=model-runs ;;
-    --processed)      REPO=data-processed ;;
-    *) echo "Unknown argument: $arg"; exit 1 ;;
+    --model-runs)     MODE=model-runs ;;
+    --processed)      MODE=data-processed ;;
+    --models)         MODE=models ;;
+    *)
+      if [[ "$MODE" == "models" ]]; then
+        IMAGES+=("$arg")
+      else
+        echo "Unknown argument: $arg"; exit 1
+      fi
+      ;;
   esac
 done
 
-if [[ -z "$REPO" ]]; then
-  echo "Error: one of --model-runs or --processed is required"
+if [[ -z "$MODE" ]]; then
+  echo "Error: one of --model-runs, --processed, or --models is required"
   exit 1
 fi
 
-if [[ "$REPO" == "data-processed" ]]; then
+if [[ "$MODE" == "models" ]]; then
+  if [[ ${#IMAGES[@]} -eq 0 ]]; then
+    echo "Error: --models requires at least one docker image URI"
+    exit 1
+  fi
+  for image in "${IMAGES[@]}"; do
+python -c "
+from tools.ckan_tools import ensure_model
+
+image = '$image'
+if ':' in image.split('/')[-1]:
+    docker_image, docker_tag = image.rsplit(':', 1)
+else:
+    docker_image, docker_tag = image, ''
+model_name = docker_image.split('/')[-1]
+print(f'Registering model: {model_name}')
+ensure_model(model_name=model_name, docker_image=docker_image, docker_tag=docker_tag)
+print(f'Done: {model_name}')
+"
+  done
+elif [[ "$MODE" == "data-processed" ]]; then
 python -c "
 from tools.lakefs_tools import list_raw_datasets
 from flow.sync_ckan_with_lakefs_dataprocessed import _do_sync_raw_dataset

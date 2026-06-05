@@ -52,8 +52,15 @@ _FDO = {
         "url": "https://example.com/data.csv",
     },
     "provenance": {
-        "prov:generatedAtTime": "2026-06-02T19:25:59Z",
-        "prov:wasAttributedTo": "EPISERVE Consortium dataset downloader",
+        "@id": "#run",
+        "@type": "prov:Activity",
+        "prov:startedAtTime": "2026-06-02T19:00:00Z",
+        "prov:endedAtTime": "2026-06-02T19:25:59Z",
+        "prov:wasAssociatedWith": {
+            "@id": "EPISERVE Consortium dataset downloader",
+            "@type": "prov:SoftwareAgent",
+        },
+        "prov:used": [],
     },
 }
 

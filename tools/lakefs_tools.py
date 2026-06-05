@@ -67,7 +67,8 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     profile    = fdo.get("profile",    {})
     provenance = fdo.get("provenance", {})
 
-    attribution = provenance.get("prov:wasAttributedTo", "")
+    agent       = provenance.get("prov:wasAssociatedWith", {})
+    attribution = agent.get("@id", "") if isinstance(agent, dict) else str(agent)
     docker_tag  = attribution.rsplit(":", 1)[-1] if ":" in attribution else ""
 
     model_name  = profile.get("name", "")
@@ -151,7 +152,7 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
         "name":        profile.get("name",                     ""),
         "description": profile.get("description",             ""),
         "source_url":  profile.get("url",                     ""),
-        "modified":    provenance.get("prov:generatedAtTime", ""),
+        "modified":    provenance.get("prov:endedAtTime", ""),
         "components":  components,
         "fdo_bytes":   raw,
     }

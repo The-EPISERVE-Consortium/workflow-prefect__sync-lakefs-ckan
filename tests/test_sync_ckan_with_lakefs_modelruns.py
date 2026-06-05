@@ -57,7 +57,8 @@ class TestCreateModel:
                 name="my-model",
                 description="A CT segmentation model.",
                 git_repo="https://github.com/example/ct-seg",
-                docker_image="ghcr.io/example/ct-seg:1.0",
+                docker_image="ghcr.io/example/ct-seg",
+                docker_tag="1.0",
                 algorithm="u-net",
                 input_format="nifti",
                 output_format="nifti",
@@ -87,7 +88,8 @@ class TestCreateModel:
                 name="my-model",
                 description="desc",
                 git_repo="https://github.com/example/model",
-                docker_image="img:1.0",
+                docker_image="ghcr.io/example/model",
+                docker_tag="1.0",
                 algorithm="algo",
                 input_format="nifti",
                 output_format="nifti",
@@ -114,12 +116,12 @@ class TestEnsureModel:
 
         with patch("requests.get", side_effect=get_side_effect), \
              patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
-            result = ensure_model("ct-seg", docker_tag="2.1.0")
+            result = ensure_model("ct-seg", docker_image="ghcr.io/example/ct-seg", docker_tag="2.1.0")
 
         assert result == new_pkg
         payload = mock_post.call_args[1]["json"]
         assert payload["name"] == "ct-seg"
-        assert payload["extras"][1] == {"key": "docker_image", "value": "2.1.0"}
+        assert payload["extras"][1] == {"key": "docker_image", "value": "ghcr.io/example/ct-seg"}
 
     def test_returns_existing_without_creating(self):
         existing = {"id": "abc", "name": "ct-seg"}
@@ -260,7 +262,7 @@ class TestSyncRun:
              patch.object(m, "create_model_run") as mock_create:
             m._do_sync_run("run-001", "model-runs")
 
-        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_tag="2.1.0")
+        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_image="", docker_tag="2.1.0")
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
             run_id           = "run-001",
@@ -330,8 +332,18 @@ _FDO = {
         "url":         "ghcr.io/example/ct-seg",
     },
     "provenance": {
-        "prov:generatedAtTime": "2026-05-15T11:00:42Z",
-        "prov:wasAttributedTo": "ghcr.io/example/ct-seg:2.1.0",
+        "@id": "#run",
+        "@type": "prov:Activity",
+        "prov:startedAtTime": "2026-05-15T10:00:00Z",
+        "prov:endedAtTime": "2026-05-15T11:00:42Z",
+        "prov:wasAssociatedWith": {
+            "@id": "ghcr.io/example/ct-seg:2.1.0",
+            "@type": "prov:SoftwareAgent",
+            "schema:name": "ct-seg",
+            "schema:softwareVersion": "2.1.0",
+            "schema:url": "ghcr.io/example/ct-seg",
+        },
+        "prov:used": [],
     },
 }
 

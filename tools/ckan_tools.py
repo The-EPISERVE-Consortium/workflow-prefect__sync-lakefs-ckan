@@ -26,6 +26,15 @@ def _parse_json(r: requests.Response, context: str) -> dict:
         )
 
 
+def _ckan_add_parquet_view(resource: dict) -> None:
+    if resource.get("format", "").upper() == "PARQUET":
+        _ckan_api("resource_view_create", {
+            "resource_id": resource["id"],
+            "view_type":   "parquet_view",
+            "title":       "Preview",
+        })
+
+
 def _ckan_api(action: str, payload: dict) -> dict:
     r = requests.post(
         f"{_ckan_url()}/api/3/action/{action}",
@@ -233,23 +242,25 @@ def create_model_run(
 
     for url in input_files:
         filename = _filename_from_url(url)
-        _ckan_api("resource_create", {
+        resource = _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
             "url":         url,
             "format":      filename.split(".")[-1].upper(),
             "description": "Input file",
         })
+        _ckan_add_parquet_view(resource)
 
     for url in output_files:
         filename = _filename_from_url(url)
-        _ckan_api("resource_create", {
+        resource = _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        filename,
             "url":         url,
             "format":      filename.split(".")[-1].upper(),
             "description": "Output file",
         })
+        _ckan_add_parquet_view(resource)
 
     return pkg
 
@@ -289,12 +300,13 @@ def create_raw_dataset(
         _ckan_upload_resource(pkg["id"], "fdo.json", fdo_bytes, "FDO metadata")
 
     for comp in components:
-        _ckan_api("resource_create", {
+        resource = _ckan_api("resource_create", {
             "package_id":  pkg["id"],
             "name":        comp["filename"],
             "url":         comp["url"],
             "format":      comp["filename"].split(".")[-1].upper(),
             "description": "Data file",
         })
+        _ckan_add_parquet_view(resource)
 
     return pkg

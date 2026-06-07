@@ -34,9 +34,10 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
     model_name = metadata.get("model_name", "")
     if model_name:
         ensure_model(
-            model_name   = model_name,
-            docker_image = metadata.get("model_image", ""),
-            docker_tag   = metadata.get("docker_tag",  ""),
+            model_name     = model_name,
+            docker_image   = metadata.get("model_image", ""),
+            docker_tag     = metadata.get("docker_tag",  ""),
+            force_recreate = force_recreate,
         )
     create_model_run(
         model_name       = metadata.get("model_name",       ""),

@@ -71,6 +71,37 @@ class TestCreateModel:
         mock_post.assert_not_called()
         mock_get.assert_called_once()
 
+    def test_force_recreate_deletes_then_creates(self):
+        existing = {"id": "abc", "name": "my-model"}
+
+        get_mock = MagicMock()
+        get_mock.json.return_value = {"success": True, "result": existing}
+
+        new_pkg = {"id": "new-abc", "name": "my-model"}
+
+        def get_side_effect(url, **_):
+            if "package_show" in url:
+                return get_mock
+            return _vocab_get_response()
+
+        with patch("requests.get", side_effect=get_side_effect), \
+             patch("requests.post") as mock_post:
+            mock_post.side_effect = [
+                _post_response({}),      # package_delete
+                _post_response(new_pkg), # package_create
+            ]
+            result = create_model(
+                name="my-model", description="desc",
+                git_repo="", docker_image="", docker_tag="",
+                algorithm="", input_format="", output_format="",
+                lead_researcher="", force_recreate=True,
+            )
+
+        assert result == new_pkg
+        delete_call, create_call = mock_post.call_args_list
+        assert "package_delete" in delete_call[0][0]
+        assert "package_create" in create_call[0][0]
+
     def test_creates_dataset_when_not_found(self):
         not_found_mock = MagicMock()
         not_found_mock.json.return_value = {"success": False, "error": {"message": "Not found"}}
@@ -281,7 +312,7 @@ class TestSyncRun:
              patch.object(m, "create_model_run") as mock_create:
             m._do_sync_run("run-001", "model-runs")
 
-        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_image="", docker_tag="2.1.0")
+        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_image="", docker_tag="2.1.0", force_recreate=False)
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
             run_id           = "run-001",

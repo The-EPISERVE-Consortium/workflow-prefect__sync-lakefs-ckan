@@ -192,6 +192,7 @@ def create_model(
     modality: str = "",
     paper_doi: str = "",
     docker_image_created: str = "",
+    force_recreate: bool = False,
 ) -> dict:
     """
     Create a model descriptor dataset in CKAN.
@@ -204,7 +205,9 @@ def create_model(
     r = requests.get(f"{_ckan_url()}/api/3/action/package_show?id={name}")
     body = _parse_json(r, "package_show")
     if body["success"]:
-        return body["result"]
+        if not force_recreate:
+            return body["result"]
+        _ckan_api("package_delete", {"id": name})
 
     vocabs = _vocabs()
     return _ckan_api("package_create", {
@@ -232,7 +235,7 @@ def create_model(
     })
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "") -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     Fields that are not derivable from run metadata are left empty for a human
@@ -249,6 +252,7 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "") 
         input_format         = "",
         output_format        = "",
         lead_researcher      = "",
+        force_recreate       = force_recreate,
     )
 
 

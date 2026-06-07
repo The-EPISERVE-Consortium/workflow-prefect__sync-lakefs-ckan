@@ -20,27 +20,31 @@ fi
 source .venv/bin/activate
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage: run_locally.sh --model-runs|--processed|--models <image> [<image> ...] [--force-recreate]"
+  echo "Usage: run_locally.sh --model-runs|--processed|--models <image> [<image> ...] [--force-recreate] [--update]"
   echo ""
   echo "  --model-runs      Sync the model-runs repo"
   echo "  --processed       Sync the data-processed repo"
   echo "  --models          Register one or more model placeholders in CKAN by docker image URI"
   echo "  --force-recreate  Overwrite datasets that already exist in CKAN"
+  echo "  --update          Patch changed fields for datasets already in CKAN (mutually exclusive with --force-recreate)"
   echo ""
   echo "Examples:"
   echo "  run_locally.sh --model-runs"
   echo "  run_locally.sh --processed --force-recreate"
+  echo "  run_locally.sh --processed --update"
   echo "  run_locally.sh --models ghcr.io/the-episerve-consortium/model__prediction__grippeweb__baseline-nullmodel:latest"
   exit 0
 fi
 
 FORCE=False
+UPDATE=False
 MODE=
 IMAGES=()
 
 for arg in "$@"; do
   case "$arg" in
     --force-recreate) FORCE=True ;;
+    --update)         UPDATE=True ;;
     --model-runs)     MODE=model-runs ;;
     --processed)      MODE=data-processed ;;
     --models)         MODE=models ;;
@@ -53,6 +57,11 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+if [[ "$FORCE" == "True" && "$UPDATE" == "True" ]]; then
+  echo "Error: --force-recreate and --update are mutually exclusive"
+  exit 1
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "Error: one of --model-runs, --processed, or --models is required"
@@ -86,8 +95,9 @@ from flow.sync_ckan_with_lakefs_dataprocessed import _do_sync_raw_dataset
 
 repo = 'data-processed'
 force_recreate = $FORCE
+update = $UPDATE
 for fdo_path in list_raw_datasets(repo):
-    _do_sync_raw_dataset(fdo_path, repo, force_recreate=force_recreate)
+    _do_sync_raw_dataset(fdo_path, repo, force_recreate=force_recreate, update=update)
 "
 else
 python -c "

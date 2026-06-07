@@ -8,11 +8,14 @@ it to CKAN, and registers all data files as resources.
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from tools.ckan_tools import _ckan_delete_raw_dataset, _ckan_raw_dataset_exists, create_raw_dataset
+from tools.ckan_tools import _ckan_delete_raw_dataset, _ckan_raw_dataset_exists, create_raw_dataset, update_raw_dataset
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 
 
-def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, force_recreate: bool = False) -> None:
+def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, force_recreate: bool = False, update: bool = False) -> None:
+    if force_recreate and update:
+        raise ValueError("force_recreate and update are mutually exclusive")
+
     try:
         metadata = get_raw_dataset_metadata(fdo_path, lakefs_processed_repo)
     except Exception as e:
@@ -25,6 +28,17 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
         return
 
     if _ckan_raw_dataset_exists(qid):
+        if update:
+            log(f"{qid}: updating...")
+            changed = update_raw_dataset(
+                qid         = qid,
+                name        = metadata["name"],
+                description = metadata["description"],
+                source_url  = metadata["source_url"],
+                modified    = metadata["modified"],
+            )
+            log(f"{qid}: updated." if changed else f"{qid}: already up to date.")
+            return
         if not force_recreate:
             log(f"{qid}: already in CKAN, skipping.")
             return
@@ -45,13 +59,13 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
 
 
 @task
-def sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, force_recreate: bool = False) -> None:
+def sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, force_recreate: bool = False, update: bool = False) -> None:
     logger = get_run_logger()
-    _do_sync_raw_dataset(fdo_path, lakefs_processed_repo, log=logger.info, force_recreate=force_recreate)
+    _do_sync_raw_dataset(fdo_path, lakefs_processed_repo, log=logger.info, force_recreate=force_recreate, update=update)
 
 
 @flow
-def sync_ckan_with_lakefs_dataprocessed(lakefs_processed_repo: str = "data-processed", force_recreate: bool = False) -> None:
+def sync_ckan_with_lakefs_dataprocessed(lakefs_processed_repo: str = "data-processed", force_recreate: bool = False, update: bool = False) -> None:
     """
     Scan the lakeFS data-processed repository and register any new datasets in CKAN.
     Intended to run on a schedule as a Prefect deployment.
@@ -59,6 +73,6 @@ def sync_ckan_with_lakefs_dataprocessed(lakefs_processed_repo: str = "data-proce
     logger    = get_run_logger()
     fdo_paths = list_raw_datasets(lakefs_processed_repo)
     logger.info(f"Found {len(fdo_paths)} datasets in lakeFS")
-    futures = [sync_raw_dataset.submit(fdo_path, lakefs_processed_repo, force_recreate) for fdo_path in fdo_paths]
+    futures = [sync_raw_dataset.submit(fdo_path, lakefs_processed_repo, force_recreate, update) for fdo_path in fdo_paths]
     for future in futures:
         future.result()

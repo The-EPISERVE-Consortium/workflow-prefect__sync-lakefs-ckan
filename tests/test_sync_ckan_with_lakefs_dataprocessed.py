@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import flow.sync_ckan_with_lakefs_dataprocessed as m
-from tools.ckan_tools import _ckan_raw_dataset_exists, create_raw_dataset
+from tools.ckan_tools import (
+    _ckan_fetch_raw_dataset,
+    _ckan_raw_dataset_exists,
+    create_raw_dataset,
+    update_raw_dataset,
+)
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -304,3 +309,154 @@ class TestDoSyncRawDataset:
             m._do_sync_raw_dataset(_FDO_PATH, "data-raw")
 
         mock_create.assert_not_called()
+
+    def test_update_calls_update_raw_dataset_when_exists(self):
+        with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
+             patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
+             patch.object(m, "update_raw_dataset", return_value=True) as mock_update, \
+             patch.object(m, "create_raw_dataset") as mock_create:
+            m._do_sync_raw_dataset(_FDO_PATH, "data-raw", update=True)
+
+        mock_update.assert_called_once_with(
+            qid         = _QID,
+            name        = "corona_incidence_germany",
+            description = "desc",
+            source_url  = "https://example.com",
+            modified    = "2026-06-02T19:25:59Z",
+        )
+        mock_create.assert_not_called()
+
+    def test_update_no_changes_does_not_call_create(self):
+        with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
+             patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
+             patch.object(m, "update_raw_dataset", return_value=False), \
+             patch.object(m, "create_raw_dataset") as mock_create:
+            m._do_sync_raw_dataset(_FDO_PATH, "data-raw", update=True)
+
+        mock_create.assert_not_called()
+
+    def test_update_falls_through_to_create_when_not_in_ckan(self):
+        with patch.object(m, "_ckan_raw_dataset_exists", return_value=False), \
+             patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
+             patch.object(m, "update_raw_dataset") as mock_update, \
+             patch.object(m, "create_raw_dataset") as mock_create:
+            m._do_sync_raw_dataset(_FDO_PATH, "data-raw", update=True)
+
+        mock_update.assert_not_called()
+        mock_create.assert_called_once()
+
+    def test_force_recreate_and_update_raises(self):
+        with patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA):
+            with pytest.raises(ValueError, match="mutually exclusive"):
+                m._do_sync_raw_dataset(_FDO_PATH, "data-raw", force_recreate=True, update=True)
+
+
+# ── _ckan_fetch_raw_dataset ────────────────────────────────────────────────────
+
+_CKAN_PKG = {
+    "id":    "pkg-uuid-123",
+    "title": "corona_incidence_germany",
+    "notes": "desc",
+    "url":   "https://example.com",
+    "extras": [
+        {"key": "dataset_type", "value": "raw-data"},
+        {"key": "qid",          "value": _QID},
+        {"key": "modified",     "value": ""},
+    ],
+}
+
+
+class TestCkanFetchRawDataset:
+    def test_returns_package_when_found(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"result": {"count": 1, "results": [_CKAN_PKG]}}
+        with patch("requests.get", return_value=mock_resp):
+            result = _ckan_fetch_raw_dataset(_QID)
+
+        assert result == _CKAN_PKG
+
+    def test_returns_none_when_not_found(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"result": {"count": 0, "results": []}}
+        with patch("requests.get", return_value=mock_resp):
+            result = _ckan_fetch_raw_dataset(_QID)
+
+        assert result is None
+
+
+# ── update_raw_dataset ─────────────────────────────────────────────────────────
+
+class TestUpdateRawDataset:
+    def _get_resp(self, pkg=_CKAN_PKG):
+        mock = MagicMock()
+        mock.json.return_value = {"result": {"count": 1, "results": [pkg]}}
+        return mock
+
+    def test_patches_when_modified_differs(self):
+        with patch("requests.get", return_value=self._get_resp()), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        assert result is True
+        payload = mock_post.call_args[1]["json"]
+        assert payload["id"] == "pkg-uuid-123"
+        extras_by_key = {e["key"]: e["value"] for e in payload["extras"]}
+        assert extras_by_key["modified"] == "2026-06-02T19:25:59Z"
+
+    def test_no_patch_when_nothing_changed(self):
+        up_to_date_pkg = {
+            **_CKAN_PKG,
+            "extras": [
+                {"key": "dataset_type", "value": "raw-data"},
+                {"key": "qid",          "value": _QID},
+                {"key": "modified",     "value": "2026-06-02T19:25:59Z"},
+            ],
+        }
+        with patch("requests.get", return_value=self._get_resp(up_to_date_pkg)), \
+             patch("requests.post") as mock_post:
+            result = update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        assert result is False
+        mock_post.assert_not_called()
+
+    def test_patches_only_top_level_when_extras_match(self):
+        pkg_with_old_title = {
+            **_CKAN_PKG,
+            "title": "old-title",
+            "extras": [
+                {"key": "dataset_type", "value": "raw-data"},
+                {"key": "qid",          "value": _QID},
+                {"key": "modified",     "value": "2026-06-02T19:25:59Z"},
+            ],
+        }
+        with patch("requests.get", return_value=self._get_resp(pkg_with_old_title)), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        payload = mock_post.call_args[1]["json"]
+        assert payload["title"] == "corona_incidence_germany"
+        assert "extras" not in payload
+
+    def test_extras_patch_sends_all_three_keys(self):
+        with patch("requests.get", return_value=self._get_resp()), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        payload = mock_post.call_args[1]["json"]
+        keys = {e["key"] for e in payload["extras"]}
+        assert keys == {"dataset_type", "qid", "modified"}

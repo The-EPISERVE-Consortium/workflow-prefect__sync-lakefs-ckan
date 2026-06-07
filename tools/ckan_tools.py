@@ -115,6 +115,61 @@ def _ckan_delete_raw_dataset(qid: str) -> None:
     _ckan_api("package_delete", {"id": qid.lower()})
 
 
+def _ckan_fetch_raw_dataset(qid: str) -> dict | None:
+    """Return the CKAN package dict for extras_qid == qid, or None if not found."""
+    r = requests.get(
+        f"{_ckan_url()}/api/3/action/package_search",
+        params={"q": f"extras_qid:{qid}", "rows": 1},
+    )
+    result = _parse_json(r, "package_search")["result"]
+    if result["count"] == 0:
+        return None
+    return result["results"][0]
+
+
+def update_raw_dataset(
+    qid: str,
+    name: str,
+    description: str,
+    source_url: str,
+    modified: str,
+) -> bool:
+    """
+    Patch a CKAN raw dataset with only the fields that differ from the current state.
+
+    Resources are not touched. Returns True if a patch was sent, False if nothing changed.
+    """
+    pkg = _ckan_fetch_raw_dataset(qid)
+    if pkg is None:
+        raise RuntimeError(f"update_raw_dataset called on non-existent dataset {qid}")
+
+    current_extras = {e["key"]: e["value"] for e in pkg.get("extras", [])}
+    desired_extras = {"dataset_type": "raw-data", "qid": qid, "modified": modified}
+
+    top_level_changed = (
+        pkg.get("title") != name
+        or pkg.get("notes") != description
+        or pkg.get("url")   != source_url
+    )
+    extras_changed = current_extras != desired_extras
+
+    if not top_level_changed and not extras_changed:
+        return False
+
+    patch: dict = {"id": pkg["id"]}
+    if top_level_changed:
+        patch["title"] = name
+        patch["notes"] = description
+        patch["url"]   = source_url
+    if extras_changed:
+        # package_patch replaces the full extras list — always send all three managed keys.
+        # Any custom extras added via the CKAN UI will be lost when this branch runs.
+        patch["extras"] = [{"key": k, "value": v} for k, v in desired_extras.items()]
+
+    _ckan_api("package_patch", patch)
+    return True
+
+
 # ── Dataset creation ───────────────────────────────────────────────────────────
 
 def create_model(

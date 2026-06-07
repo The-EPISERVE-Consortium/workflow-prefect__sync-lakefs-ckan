@@ -133,11 +133,12 @@ def update_raw_dataset(
     description: str,
     source_url: str,
     modified: str,
-) -> bool:
+) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
 
-    Resources are not touched. Returns True if a patch was sent, False if nothing changed.
+    Resources are not touched. Returns a dict mapping each changed field name to
+    (old_value, new_value). Empty dict means nothing changed.
     """
     pkg = _ckan_fetch_raw_dataset(qid)
     if pkg is None:
@@ -146,28 +147,31 @@ def update_raw_dataset(
     current_extras = {e["key"]: e["value"] for e in pkg.get("extras", [])}
     desired_extras = {"dataset_type": "raw-data", "qid": qid, "modified": modified}
 
-    top_level_changed = (
-        pkg.get("title") != name
-        or pkg.get("notes") != description
-        or pkg.get("url")   != source_url
-    )
-    extras_changed = current_extras != desired_extras
+    changed: dict = {}
+    for field, desired in [("title", name), ("notes", description), ("url", source_url)]:
+        current = pkg.get(field, "")
+        if current != desired:
+            changed[field] = (current, desired)
+    for key, desired in desired_extras.items():
+        current = current_extras.get(key, "")
+        if current != desired:
+            changed[key] = (current, desired)
 
-    if not top_level_changed and not extras_changed:
-        return False
+    if not changed:
+        return {}
 
     patch: dict = {"id": pkg["id"]}
-    if top_level_changed:
+    if any(f in changed for f in ("title", "notes", "url")):
         patch["title"] = name
         patch["notes"] = description
         patch["url"]   = source_url
-    if extras_changed:
+    if any(k in changed for k in desired_extras):
         # package_patch replaces the full extras list — always send all three managed keys.
         # Any custom extras added via the CKAN UI will be lost when this branch runs.
         patch["extras"] = [{"key": k, "value": v} for k, v in desired_extras.items()]
 
     _ckan_api("package_patch", patch)
-    return True
+    return changed
 
 
 # ── Dataset creation ───────────────────────────────────────────────────────────

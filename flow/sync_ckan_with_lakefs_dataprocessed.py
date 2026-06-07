@@ -37,7 +37,11 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
                 source_url  = metadata["source_url"],
                 modified    = metadata["modified"],
             )
-            log(f"{qid}: updated." if changed else f"{qid}: already up to date.")
+            if changed:
+                diff = ", ".join(f"{k} {old!r} → {new!r}" for k, (old, new) in changed.items())
+                log(f"{qid}: updated: {diff}")
+            else:
+                log(f"{qid}: already up to date.")
             return
         if not force_recreate:
             log(f"{qid}: already in CKAN, skipping.")

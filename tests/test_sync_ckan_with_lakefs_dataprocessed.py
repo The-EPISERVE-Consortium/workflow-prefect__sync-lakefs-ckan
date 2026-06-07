@@ -313,7 +313,7 @@ class TestDoSyncRawDataset:
     def test_update_calls_update_raw_dataset_when_exists(self):
         with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
              patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
-             patch.object(m, "update_raw_dataset", return_value=True) as mock_update, \
+             patch.object(m, "update_raw_dataset", return_value={"modified": ("", "2026-06-02T19:25:59Z")}) as mock_update, \
              patch.object(m, "create_raw_dataset") as mock_create:
             m._do_sync_raw_dataset(_FDO_PATH, "data-raw", update=True)
 
@@ -329,7 +329,7 @@ class TestDoSyncRawDataset:
     def test_update_no_changes_does_not_call_create(self):
         with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
              patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
-             patch.object(m, "update_raw_dataset", return_value=False), \
+             patch.object(m, "update_raw_dataset", return_value={}), \
              patch.object(m, "create_raw_dataset") as mock_create:
             m._do_sync_raw_dataset(_FDO_PATH, "data-raw", update=True)
 
@@ -401,7 +401,7 @@ class TestUpdateRawDataset:
                 source_url="https://example.com", modified="2026-06-02T19:25:59Z",
             )
 
-        assert result is True
+        assert result == {"modified": ("", "2026-06-02T19:25:59Z")}
         payload = mock_post.call_args[1]["json"]
         assert payload["id"] == "pkg-uuid-123"
         extras_by_key = {e["key"]: e["value"] for e in payload["extras"]}
@@ -423,7 +423,7 @@ class TestUpdateRawDataset:
                 source_url="https://example.com", modified="2026-06-02T19:25:59Z",
             )
 
-        assert result is False
+        assert result == {}
         mock_post.assert_not_called()
 
     def test_patches_only_top_level_when_extras_match(self):

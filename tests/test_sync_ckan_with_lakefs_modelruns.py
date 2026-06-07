@@ -121,7 +121,8 @@ class TestEnsureModel:
         assert result == new_pkg
         payload = mock_post.call_args[1]["json"]
         assert payload["name"] == "ct-seg"
-        assert payload["extras"][1] == {"key": "docker_image", "value": "ghcr.io/example/ct-seg"}
+        extras = {e["key"]: e["value"] for e in payload["extras"]}
+        assert extras["docker_image"] == "ghcr.io/example/ct-seg"
 
     def test_returns_existing_without_creating(self):
         existing = {"id": "abc", "name": "ct-seg"}
@@ -134,6 +135,24 @@ class TestEnsureModel:
 
         assert result == existing
         mock_post.assert_not_called()
+
+    def test_stores_docker_image_created_in_extras(self):
+        not_found_mock = MagicMock()
+        not_found_mock.json.return_value = {"success": False, "error": {"message": "Not found"}}
+        new_pkg = {"id": "new-id", "name": "mymodel"}
+
+        def get_side_effect(url, **_):
+            if "package_show" in url:
+                return not_found_mock
+            return _vocab_get_response()
+
+        with patch("tools.ckan_tools.get_image_created", return_value="2025-11-14T09:32:17Z"), \
+             patch("requests.get", side_effect=get_side_effect), \
+             patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
+            ensure_model("mymodel", docker_image="ghcr.io/org/mymodel", docker_tag="1.0")
+
+        extras = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
+        assert extras["docker_image_created"] == "2025-11-14T09:32:17Z"
 
 
 # ── create_model_run ───────────────────────────────────────────────────────────

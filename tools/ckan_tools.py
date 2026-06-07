@@ -7,6 +7,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
+from tools.github_tools import get_image_created
+
 def _ckan_url() -> str:
     return os.environ["CKAN_HOST"]
 
@@ -189,6 +191,7 @@ def create_model(
     domain: str = "",
     modality: str = "",
     paper_doi: str = "",
+    docker_image_created: str = "",
 ) -> dict:
     """
     Create a model descriptor dataset in CKAN.
@@ -216,14 +219,15 @@ def create_model(
             _vtag(vocabs, "modality", modality) if modality else None,
         ] if t is not None],
         "extras": [
-            {"key": "dataset_type",    "value": "model"},
-            {"key": "docker_image",    "value": docker_image},
-            {"key": "docker_tag",      "value": docker_tag},
-            {"key": "algorithm",       "value": algorithm},
-            {"key": "input_format",    "value": input_format},
-            {"key": "output_format",   "value": output_format},
-            {"key": "lead_researcher", "value": lead_researcher},
-            {"key": "paper_doi",       "value": paper_doi},
+            {"key": "dataset_type",        "value": "model"},
+            {"key": "docker_image",        "value": docker_image},
+            {"key": "docker_tag",          "value": docker_tag},
+            {"key": "docker_image_created","value": docker_image_created},
+            {"key": "algorithm",           "value": algorithm},
+            {"key": "input_format",        "value": input_format},
+            {"key": "output_format",       "value": output_format},
+            {"key": "lead_researcher",     "value": lead_researcher},
+            {"key": "paper_doi",           "value": paper_doi},
         ],
     })
 
@@ -235,15 +239,16 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "") 
     to fill in via the CKAN UI.
     """
     return create_model(
-        name             = model_name,
-        description      = f"Auto-created placeholder for model '{model_name}'.",
-        git_repo         = "",
-        docker_image     = docker_image,
-        docker_tag       = docker_tag,
-        algorithm        = "",
-        input_format     = "",
-        output_format    = "",
-        lead_researcher  = "",
+        name                 = model_name,
+        description          = f"Auto-created placeholder for model '{model_name}'.",
+        git_repo             = "",
+        docker_image         = docker_image,
+        docker_tag           = docker_tag,
+        docker_image_created = get_image_created(docker_image, docker_tag),
+        algorithm            = "",
+        input_format         = "",
+        output_format        = "",
+        lead_researcher      = "",
     )
 
 

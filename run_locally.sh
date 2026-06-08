@@ -105,8 +105,10 @@ model_qid, model_fdo_bytes = ensure_model_fdo(
     force=force,
 )
 print(f'  QID: {model_qid}')
+import json as _json
+_fdo_profile = _json.loads(model_fdo_bytes).get('profile', {}) if model_fdo_bytes else {}
 print(f'Registering in CKAN: {model_name}')
-ensure_model(model_name=model_name, docker_image=docker_image, docker_tag=docker_tag, model_qid=model_qid, fdo_bytes=model_fdo_bytes, force_recreate=force)
+ensure_model(model_name=model_name, docker_image=docker_image, docker_tag=docker_tag, model_qid=model_qid, fdo_bytes=model_fdo_bytes, description=_fdo_profile.get('description', ''), git_repo=_fdo_profile.get('codeRepository', ''), additional_properties=_fdo_profile.get('additionalProperty', []), force_recreate=force)
 print(f'Done: {model_name}')
 "
   done

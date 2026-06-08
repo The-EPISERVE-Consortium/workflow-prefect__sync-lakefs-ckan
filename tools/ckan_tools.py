@@ -255,7 +255,7 @@ def create_model(
     return pkg
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", description: str = "", git_repo: str = "", force_recreate: bool = False) -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", description: str = "", git_repo: str = "", additional_properties: list = [], force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     When description/git_repo are provided they are used; otherwise a placeholder
@@ -263,19 +263,20 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", 
     If the model already exists with a placeholder, it is patched in-place.
     """
     return create_model(
-        name                 = model_name,
-        description          = description or f"Auto-created placeholder for model '{model_name}'.",
-        git_repo             = git_repo,
-        docker_image         = docker_image,
-        docker_tag           = docker_tag,
-        docker_image_created = get_image_created(docker_image, docker_tag),
-        model_qid            = model_qid,
-        fdo_bytes            = fdo_bytes,
-        algorithm            = "",
-        input_format         = "",
-        output_format        = "",
-        lead_researcher      = "",
-        force_recreate       = force_recreate,
+        name                  = model_name,
+        description           = description or f"Auto-created placeholder for model '{model_name}'.",
+        git_repo              = git_repo,
+        docker_image          = docker_image,
+        docker_tag            = docker_tag,
+        docker_image_created  = get_image_created(docker_image, docker_tag),
+        model_qid             = model_qid,
+        fdo_bytes             = fdo_bytes,
+        algorithm             = "",
+        input_format          = "",
+        output_format         = "",
+        lead_researcher       = "",
+        additional_properties = additional_properties,
+        force_recreate        = force_recreate,
     )
 
 

@@ -57,14 +57,15 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         except Exception:
             _fdo_profile = {}
         ensure_model(
-            model_name     = model_name,
-            docker_image   = model_image,
-            docker_tag     = docker_tag,
-            model_qid      = model_qid,
-            fdo_bytes      = model_fdo_bytes,
-            description    = _fdo_profile.get("description", ""),
-            git_repo       = _fdo_profile.get("codeRepository", ""),
-            force_recreate = force_recreate,
+            model_name            = model_name,
+            docker_image          = model_image,
+            docker_tag            = docker_tag,
+            model_qid             = model_qid,
+            fdo_bytes             = model_fdo_bytes,
+            description           = _fdo_profile.get("description", ""),
+            git_repo              = _fdo_profile.get("codeRepository", ""),
+            additional_properties = _fdo_profile.get("additionalProperty", []),
+            force_recreate        = force_recreate,
         )
     create_model_run(
         model_name       = model_name,

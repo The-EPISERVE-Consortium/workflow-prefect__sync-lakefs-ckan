@@ -242,7 +242,7 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
         "description":          profile.get("description",     ""),
         "docker_image":         profile.get("url",             ""),
         "docker_tag":           profile.get("softwareVersion", ""),
-        "git_repo":             extras.get("git_repo",         ""),
+        "git_repo":             profile.get("codeRepository", "") or extras.get("git_repo", ""),
         "algorithm":            extras.get("algorithm",        ""),
         "input_format":         extras.get("input_format",     ""),
         "output_format":        extras.get("output_format",    ""),

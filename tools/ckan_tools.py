@@ -29,11 +29,18 @@ def _parse_json(r: requests.Response, context: str) -> dict:
         )
 
 
-def _ckan_add_parquet_view(resource: dict) -> None:
-    if resource.get("format", "").upper() == "PARQUET":
+def _ckan_add_preview_view(resource: dict) -> None:
+    fmt = resource.get("format", "").upper()
+    if fmt == "PARQUET":
         _ckan_api("resource_view_create", {
             "resource_id": resource["id"],
             "view_type":   "parquet_view",
+            "title":       "Preview",
+        })
+    elif fmt == "JSON":
+        _ckan_api("resource_view_create", {
+            "resource_id": resource["id"],
+            "view_type":   "text_view",
             "title":       "Preview",
         })
 
@@ -65,6 +72,7 @@ def _ckan_upload_resource(pkg_id: str, filename: str, content: bytes, descriptio
     body = _parse_json(r, "resource_create (upload)")
     if not body["success"]:
         raise RuntimeError(f"CKAN resource_create (upload) failed: {body['error']}")
+    _ckan_add_preview_view(body["result"])
 
 
 @lru_cache(maxsize=1)
@@ -342,7 +350,7 @@ def create_model_run(
             "format":      filename.split(".")[-1].upper(),
             "description": "Input file",
         })
-        _ckan_add_parquet_view(resource)
+        _ckan_add_preview_view(resource)
 
     for url in output_files:
         filename = _filename_from_url(url)
@@ -353,7 +361,7 @@ def create_model_run(
             "format":      filename.split(".")[-1].upper(),
             "description": "Output file",
         })
-        _ckan_add_parquet_view(resource)
+        _ckan_add_preview_view(resource)
 
     return pkg
 
@@ -400,6 +408,6 @@ def create_raw_dataset(
             "format":      comp["filename"].split(".")[-1].upper(),
             "description": "Data file",
         })
-        _ckan_add_parquet_view(resource)
+        _ckan_add_preview_view(resource)
 
     return pkg

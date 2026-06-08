@@ -50,6 +50,35 @@ def list_runs(lakefs_run_repo: str) -> list:
     ]
 
 
+def _qid_from_lakefs_uri(uri: str) -> str:
+    """Extract the QID segment from a lakefs://repo/branch/.../QNNN/file path."""
+    if not uri.startswith("lakefs://"):
+        return ""
+    parts = uri[len("lakefs://"):].split("/")
+    for part in parts:
+        if part.upper().startswith("Q") and part[1:].isdigit():
+            return part.upper()
+    return ""
+
+
+def _status_from_rocrate(rocrate_bytes: bytes) -> str:
+    """Return 'success' or 'failed' by reading actionStatus from RO-Crate JSON."""
+    if not rocrate_bytes:
+        return ""
+    try:
+        crate = json.loads(rocrate_bytes)
+        for entity in crate.get("@graph", []):
+            action_status = entity.get("actionStatus", {})
+            status_id = action_status.get("@id", "") if isinstance(action_status, dict) else str(action_status)
+            if "Completed" in status_id:
+                return "success"
+            if "Failed" in status_id:
+                return "failed"
+    except Exception:
+        pass
+    return ""
+
+
 def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     """Read {run_id}.fdo.json and return a flat metadata dict including file lists."""
     client = _lakefs_client()
@@ -89,6 +118,13 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         elif comp_id.startswith("components/output/"):
             output_files.append(_doip_url(run_id, comp_id))
 
+    input_dataset_qids = []
+    for entry in provenance.get("prov:used", []):
+        src_uri = entry.get("@id", "") if isinstance(entry, dict) else str(entry)
+        qid_part = _qid_from_lakefs_uri(src_uri)
+        if qid_part and qid_part not in input_dataset_qids:
+            input_dataset_qids.append(qid_part)
+
     try:
         rocrate_obj = branch.object(f"{shard_qid(run_id)}/components/ro-crate-metadata.json")
         with rocrate_obj.reader() as f:
@@ -96,18 +132,21 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     except ObjectNotFoundException:
         rocrate_bytes = b""
 
+    status = _status_from_rocrate(rocrate_bytes)
+
     return {
-        "model_name":       model_name,
-        "model_image":      model_image,
-        "qid":              qid,
-        "docker_tag":       docker_tag,
-        "run_timestamp":    kernel.get("modified",                  ""),
-        "status":           "",
-        "computation_time": "",
-        "fdo_bytes":        raw,
-        "rocrate_bytes":    rocrate_bytes,
-        "input_files":      input_files,
-        "output_files":     output_files,
+        "model_name":          model_name,
+        "model_image":         model_image,
+        "qid":                 qid,
+        "docker_tag":          docker_tag,
+        "run_timestamp":       kernel.get("modified",                  ""),
+        "status":              status,
+        "computation_time":    "",
+        "fdo_bytes":           raw,
+        "rocrate_bytes":       rocrate_bytes,
+        "input_files":         input_files,
+        "output_files":        output_files,
+        "input_dataset_qids":  input_dataset_qids,
     }
 
 

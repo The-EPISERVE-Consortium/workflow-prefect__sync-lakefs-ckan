@@ -68,18 +68,19 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
             force_recreate        = force_recreate,
         )
     create_model_run(
-        model_name       = model_name,
-        run_id           = run_id,
-        qid              = metadata.get("qid",              ""),
-        docker_tag       = docker_tag,
-        run_timestamp    = metadata.get("run_timestamp",    ""),
-        status           = metadata.get("status",           ""),
-        computation_time = metadata.get("computation_time", ""),
-        fdo_bytes        = metadata.get("fdo_bytes",      b""),
-        rocrate_bytes    = metadata.get("rocrate_bytes", b""),
-        input_files      = metadata.get("input_files",  []),
-        output_files     = metadata.get("output_files", []),
-        model_qid        = model_qid,
+        model_name          = model_name,
+        run_id              = run_id,
+        qid                 = metadata.get("qid",               ""),
+        docker_tag          = docker_tag,
+        run_timestamp       = metadata.get("run_timestamp",     ""),
+        status              = metadata.get("status",            ""),
+        computation_time    = metadata.get("computation_time",  ""),
+        fdo_bytes           = metadata.get("fdo_bytes",        b""),
+        rocrate_bytes       = metadata.get("rocrate_bytes",    b""),
+        input_files         = metadata.get("input_files",      []),
+        output_files        = metadata.get("output_files",     []),
+        model_qid           = model_qid,
+        input_dataset_qids  = metadata.get("input_dataset_qids", []),
     )
     log(f"{run_id}: done.")
 

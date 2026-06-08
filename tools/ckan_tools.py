@@ -301,6 +301,7 @@ def create_model_run(
     input_files: list,
     output_files: list,
     model_qid: str = "",
+    input_dataset_qids: list = [],
 ) -> dict:
     """
     Create a model run dataset in CKAN and attach all input and output files
@@ -326,13 +327,15 @@ def create_model_run(
             _vtag(vocabs, "status", status),
         ] if status else [],
         "extras": [
-            {"key": "qid",             "value": qid},
-            {"key": "model",           "value": model_name},
-            {"key": "model_qid",       "value": model_qid},
-            {"key": "docker_tag",      "value": docker_tag},
-            {"key": "run_timestamp",   "value": run_timestamp},
-            {"key": "status",          "value": status},
-            {"key": "computation_time","value": computation_time},
+            {"key": "qid",                  "value": qid},
+            {"key": "model",                "value": model_name},
+            {"key": "model_qid",            "value": model_qid},
+            {"key": "docker_tag",           "value": docker_tag},
+            {"key": "run_timestamp",        "value": run_timestamp},
+            {"key": "status",               "value": status},
+            {"key": "computation_time",     "value": computation_time},
+            *([{"key": "input_dataset_qids", "value": json.dumps(input_dataset_qids)}]
+              if input_dataset_qids else []),
         ],
     })
 

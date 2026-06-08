@@ -211,7 +211,7 @@ def create_model(
             pkg = body["result"]
             patch = {}
             if description and "Auto-created placeholder" in (pkg.get("notes") or ""):
-                patch["notes"] = f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model:{name})"
+                patch["notes"] = f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})"
             if git_repo and not pkg.get("url"):
                 patch["url"] = git_repo
             if patch:
@@ -224,7 +224,7 @@ def create_model(
     pkg = _ckan_api("package_create", {
         "name":      name,
         "title":     name,
-        "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model:{name})",
+        "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})",
         "owner_org": "episerve",
         "url":       git_repo,
         "groups":    [{"name": "type-model"}],

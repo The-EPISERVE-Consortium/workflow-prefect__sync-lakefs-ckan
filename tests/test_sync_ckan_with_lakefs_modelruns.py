@@ -132,8 +132,8 @@ class TestCreateModel:
         assert result == new_pkg
 
     def test_patches_placeholder_description_when_real_one_provided(self):
-        existing = {"id": "abc", "name": "my-model", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model:my-model)", "url": ""}
-        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model:my-model)", "url": "https://github.com/example/model"}
+        existing = {"id": "abc", "name": "my-model", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:)", "url": ""}
+        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:)", "url": "https://github.com/example/model"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}

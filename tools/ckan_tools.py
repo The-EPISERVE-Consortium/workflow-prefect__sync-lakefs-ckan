@@ -95,10 +95,10 @@ def _ckan_delete_run(run_id: str) -> None:
 
 
 def _ckan_run_exists(run_id: str) -> bool:
-    """Return True if a CKAN dataset with extras_run_id == run_id already exists."""
+    """Return True if a CKAN dataset with extras_qid == run_id already exists."""
     r = requests.get(
         f"{_ckan_url()}/api/3/action/package_search",
-        params={"q": f"extras_run_id:{run_id}", "rows": 1},
+        params={"q": f"extras_qid:{run_id}", "rows": 1},
     )
     return _parse_json(r, "package_search")["result"]["count"] > 0
 
@@ -312,7 +312,6 @@ def create_model_run(
             _vtag(vocabs, "status", status),
         ] if status else [],
         "extras": [
-            {"key": "run_id",          "value": run_id},
             {"key": "qid",             "value": qid},
             {"key": "model",           "value": model_name},
             {"key": "model_qid",       "value": model_qid},

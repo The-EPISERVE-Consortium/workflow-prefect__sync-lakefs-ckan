@@ -21,19 +21,19 @@ fi
 source .venv/bin/activate
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage: run_locally.sh --model-runs|--processed|--sync-models|--register-model <image> [<image> ...] [--force-recreate] [--update]"
+  echo "Usage: run_locally.sh --sync-model-runs|--sync-data|--sync-models|--register-model <image> [<image> ...] [--force-recreate] [--update]"
   echo ""
-  echo "  --model-runs        Sync model-runs lakeFS repo → CKAN (also writes model FDOs to lakeFS models repo)"
-  echo "  --processed         Sync data-processed lakeFS repo → CKAN"
+  echo "  --sync-model-runs   Sync model-runs lakeFS repo → CKAN (also writes model FDOs to lakeFS models repo)"
+  echo "  --sync-data         Sync data-processed lakeFS repo → CKAN"
   echo "  --sync-models       Sync all model FDOs from lakeFS models repo → CKAN"
   echo "  --register-model    Write FDO to lakeFS models repo and register in CKAN for one or more docker image URIs"
   echo "  --force-recreate    Overwrite items that already exist in CKAN / lakeFS"
   echo "  --update            Patch changed fields for datasets already in CKAN (mutually exclusive with --force-recreate)"
   echo ""
   echo "Examples:"
-  echo "  run_locally.sh --model-runs"
-  echo "  run_locally.sh --processed --force-recreate"
-  echo "  run_locally.sh --processed --update"
+  echo "  run_locally.sh --sync-model-runs"
+  echo "  run_locally.sh --sync-data --force-recreate"
+  echo "  run_locally.sh --sync-data --update"
   echo "  run_locally.sh --sync-models"
   echo "  run_locally.sh --register-model ghcr.io/the-episerve-consortium/model__prediction__grippeweb__baseline-nullmodel"
   exit 0
@@ -48,11 +48,10 @@ for arg in "$@"; do
   case "$arg" in
     --force-recreate)  FORCE=True ;;
     --update)          UPDATE=True ;;
-    --model-runs)      MODE=model-runs ;;
-    --processed)       MODE=data-processed ;;
+    --sync-model-runs) MODE=model-runs ;;
+    --sync-data)       MODE=data-processed ;;
     --sync-models)     MODE=sync-models ;;
     --register-model)  MODE=register-model ;;
-    --models)          MODE=register-model ;;  # backwards-compat alias
     *)
       if [[ "$MODE" == "register-model" ]]; then
         IMAGES+=("$arg")
@@ -69,7 +68,7 @@ if [[ "$FORCE" == "True" && "$UPDATE" == "True" ]]; then
 fi
 
 if [[ -z "$MODE" ]]; then
-  echo "Error: one of --model-runs, --processed, --sync-models, or --register-model is required"
+  echo "Error: one of --sync-model-runs, --sync-data, --sync-models, or --register-model is required"
   exit 1
 fi
 

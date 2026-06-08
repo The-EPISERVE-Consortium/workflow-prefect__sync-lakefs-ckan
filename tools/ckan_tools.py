@@ -193,6 +193,7 @@ def create_model(
     paper_doi: str = "",
     docker_image_created: str = "",
     model_qid: str = "",
+    fdo_bytes: bytes = b"",
     force_recreate: bool = False,
 ) -> dict:
     """
@@ -211,7 +212,7 @@ def create_model(
         _ckan_api("package_delete", {"id": name})
 
     vocabs = _vocabs()
-    return _ckan_api("package_create", {
+    pkg = _ckan_api("package_create", {
         "name":      name,
         "title":     name,
         "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model:{name})",
@@ -235,9 +236,12 @@ def create_model(
             {"key": "paper_doi",           "value": paper_doi},
         ],
     })
+    if fdo_bytes and model_qid:
+        _ckan_upload_resource(pkg["id"], f"{model_qid}.fdo.json", fdo_bytes, "FDO metadata")
+    return pkg
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", force_recreate: bool = False) -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     Fields that are not derivable from run metadata are left empty for a human
@@ -251,6 +255,7 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", 
         docker_tag           = docker_tag,
         docker_image_created = get_image_created(docker_image, docker_tag),
         model_qid            = model_qid,
+        fdo_bytes            = fdo_bytes,
         algorithm            = "",
         input_format         = "",
         output_format        = "",

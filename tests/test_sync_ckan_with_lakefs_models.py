@@ -88,9 +88,10 @@ class TestEnsureModelFdo:
         with patch("tools.lakefs_tools._lakefs_client"), \
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
             self._branch_mock(mock_repo, exists=True)
-            result = ensure_model_fdo(image, "model", "1.0", "models")
+            qid, fdo_bytes = ensure_model_fdo(image, "model", "1.0", "models")
 
-        assert result == expected_qid
+        assert qid == expected_qid
+        assert fdo_bytes == b'{"@id": "Q9999999999999"}'
         # branch.commit should NOT have been called
         branch = mock_repo.return_value.branch.return_value
         branch.commit.assert_not_called()
@@ -103,9 +104,10 @@ class TestEnsureModelFdo:
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
              patch("tools.lakefs_tools.get_repo_fdo", return_value=None):
             branch = self._branch_mock(mock_repo, exists=False)
-            result = ensure_model_fdo(image, "model", "1.0", "models")
+            qid, fdo_bytes = ensure_model_fdo(image, "model", "1.0", "models")
 
-        assert result == expected_qid
+        assert qid == expected_qid
+        assert len(fdo_bytes) > 0
         uploaded = branch.object.return_value.upload.call_args[1]["data"]
         fdo = json.loads(uploaded)
         assert fdo["@id"] == expected_qid
@@ -128,9 +130,10 @@ class TestEnsureModelFdo:
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
              patch("tools.lakefs_tools.get_repo_fdo", return_value=repo_metadata):
             branch = self._branch_mock(mock_repo, exists=False)
-            result = ensure_model_fdo(image, "model", "1.0", "models")
+            qid, fdo_bytes = ensure_model_fdo(image, "model", "1.0", "models")
 
-        assert result == expected_qid
+        assert qid == expected_qid
+        assert len(fdo_bytes) > 0
         uploaded = branch.object.return_value.upload.call_args[1]["data"]
         fdo = json.loads(uploaded)
         # QID always comes from the sync workflow, never from the repo file
@@ -188,6 +191,7 @@ class TestDoSyncModel:
             "modality": "",
             "paper_doi": "",
             "docker_image_created": "",
+            "fdo_bytes": b"",
         }
         new_pkg = {"id": "new-id", "name": "my-model"}
 

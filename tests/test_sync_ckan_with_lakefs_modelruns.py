@@ -307,11 +307,12 @@ class TestSyncRun:
             "input_files":      input_files,
             "output_files":     output_files,
         }
-        fake_model_qid = "Q0000000000001"
+        fake_model_qid  = "Q0000000000001"
+        fake_fdo_bytes  = b'{"@id": "Q0000000000001"}'
 
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
-             patch.object(m, "ensure_model_fdo", return_value=fake_model_qid) as mock_fdo, \
+             patch.object(m, "ensure_model_fdo", return_value=(fake_model_qid, fake_fdo_bytes)) as mock_fdo, \
              patch.object(m, "ensure_model") as mock_ensure, \
              patch.object(m, "create_model_run") as mock_create:
             m._do_sync_run("run-001", "model-runs")
@@ -326,7 +327,7 @@ class TestSyncRun:
         )
         mock_ensure.assert_called_once_with(
             model_name="ct-seg", docker_image="ghcr.io/example/ct-seg",
-            docker_tag="2.1.0", model_qid=fake_model_qid, force_recreate=False,
+            docker_tag="2.1.0", model_qid=fake_model_qid, fdo_bytes=fake_fdo_bytes, force_recreate=False,
         )
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",

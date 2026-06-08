@@ -26,6 +26,7 @@ def _do_sync_model(model_qid: str, lakefs_models_repo: str, log=print, force_rec
         docker_tag           = meta.get("docker_tag",      ""),
         docker_image_created = meta.get("docker_image_created", ""),
         model_qid            = model_qid,
+        fdo_bytes            = meta.get("fdo_bytes",       b""),
         algorithm            = meta.get("algorithm",       ""),
         input_format         = meta.get("input_format",    ""),
         output_format        = meta.get("output_format",   ""),

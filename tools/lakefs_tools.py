@@ -183,9 +183,9 @@ def ensure_model_fdo(
     if not force:
         try:
             with branch.object(path).reader() as f:
-                f.read()
+                existing_bytes = f.read()
             log(f"  model '{model_name}' ({qid}): already in lakeFS models repo, skipping.")
-            return qid  # already present
+            return qid, existing_bytes
         except ObjectNotFoundException:
             pass
 
@@ -207,13 +207,11 @@ def ensure_model_fdo(
     else:
         log(f"  model '{model_name}' ({qid}): no fdo.json found — writing placeholder.")
 
-    branch.object(path).upload(
-        data=json.dumps(fdo, indent=2).encode(),
-        content_type="application/json",
-    )
+    fdo_bytes = json.dumps(fdo, indent=2).encode()
+    branch.object(path).upload(data=fdo_bytes, content_type="application/json")
     branch.commit(message=f"add model fdo for {qid}")
     log(f"  model '{model_name}' ({qid}): written to lakeFS models repo.")
-    return qid
+    return qid, fdo_bytes
 
 
 def list_models(lakefs_models_repo: str) -> list:
@@ -234,7 +232,8 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
     branch = lakefs.Repository(lakefs_models_repo, client=client).branch(LAKEFS_BRANCH)
     path   = f"{shard_qid(model_qid)}/{model_qid}.fdo.json"
     with branch.object(path).reader() as f:
-        fdo = json.loads(f.read())
+        raw = f.read()
+    fdo = json.loads(raw)
 
     profile = fdo.get("profile", {})
     extras  = {e.get("key", ""): e.get("value", "") for e in fdo.get("extras", [])} if isinstance(fdo.get("extras"), list) else {}
@@ -252,6 +251,7 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
         "modality":             extras.get("modality",         ""),
         "paper_doi":            extras.get("paper_doi",        ""),
         "docker_image_created": extras.get("docker_image_created", ""),
+        "fdo_bytes":            raw,
     }
 
 

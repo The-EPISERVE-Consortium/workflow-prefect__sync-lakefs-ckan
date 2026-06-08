@@ -94,7 +94,7 @@ lakefs_models_repo = os.environ.get('LAKEFS_MODELS_REPO', 'models')
 force = $FORCE == True
 
 print(f'Writing model FDO to lakeFS: {model_name}')
-model_qid = ensure_model_fdo(
+model_qid, model_fdo_bytes = ensure_model_fdo(
     docker_image=docker_image,
     model_name=model_name,
     docker_tag=docker_tag,
@@ -103,7 +103,7 @@ model_qid = ensure_model_fdo(
 )
 print(f'  QID: {model_qid}')
 print(f'Registering in CKAN: {model_name}')
-ensure_model(model_name=model_name, docker_image=docker_image, docker_tag=docker_tag, model_qid=model_qid, force_recreate=force)
+ensure_model(model_name=model_name, docker_image=docker_image, docker_tag=docker_tag, model_qid=model_qid, fdo_bytes=model_fdo_bytes, force_recreate=force)
 print(f'Done: {model_name}')
 "
   done

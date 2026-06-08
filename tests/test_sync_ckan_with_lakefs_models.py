@@ -112,28 +112,37 @@ class TestEnsureModelFdo:
         assert fdo["profile"]["@type"] == "SoftwareApplication"
         branch.commit.assert_called_once()
 
-    def test_uses_github_fdo_when_available(self):
+    def test_uses_repo_metadata_when_available(self):
         image = "ghcr.io/example/model"
         expected_qid = mint_model_qid(image)
-        github_fdo = {
-            "@id": "some-other-id",
-            "@type": "DigitalObject",
-            "kernel": {"@id": "some-other-id", "primaryIdentifier": "some-other-id"},
-            "profile": {"@type": "SoftwareApplication", "name": "model"},
+        # repo fdo.json is a plain schema.org descriptor — no @id, no kernel
+        repo_metadata = {
+            "@context": "https://schema.org/",
+            "@type": "SoftwareApplication",
+            "name": "my-model",
+            "description": "A real description from the repo.",
+            "codeRepository": "https://github.com/example/model",
         }
 
         with patch("tools.lakefs_tools._lakefs_client"), \
              patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
-             patch("tools.lakefs_tools.get_repo_fdo", return_value=github_fdo):
+             patch("tools.lakefs_tools.get_repo_fdo", return_value=repo_metadata):
             branch = self._branch_mock(mock_repo, exists=False)
             result = ensure_model_fdo(image, "model", "1.0", "models")
 
         assert result == expected_qid
         uploaded = branch.object.return_value.upload.call_args[1]["data"]
         fdo = json.loads(uploaded)
+        # QID always comes from the sync workflow, never from the repo file
         assert fdo["@id"] == expected_qid
         assert fdo["kernel"]["@id"] == expected_qid
         assert fdo["kernel"]["primaryIdentifier"] == expected_qid
+        # Profile fields are merged from the repo file
+        assert fdo["profile"]["description"] == "A real description from the repo."
+        assert fdo["profile"]["name"] == "my-model"
+        assert fdo["profile"]["codeRepository"] == "https://github.com/example/model"
+        # QID-specific identity fields are never overwritten by the repo file
+        assert fdo["profile"]["@id"] == expected_qid
 
     def test_force_overwrites_existing(self):
         image = "ghcr.io/example/model"

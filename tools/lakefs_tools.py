@@ -170,8 +170,9 @@ def ensure_model_fdo(
     Ensure a model descriptor FDO exists in the lakeFS models repo.
 
     Checks the model's GitHub source repo for an existing fdo.json; if found,
-    copies it (with QID overridden) to lakeFS. Otherwise writes a placeholder.
-    Returns the stable model QID derived from docker_image.
+    its fields are merged into the profile of the FDO. Otherwise a placeholder
+    is written. The QID is always derived from docker_image — never taken from
+    the repo file. Returns the stable model QID.
     """
     qid    = mint_model_qid(docker_image)
     path   = f"{shard_qid(qid)}/{qid}.fdo.json"
@@ -186,14 +187,13 @@ def ensure_model_fdo(
         except ObjectNotFoundException:
             pass
 
-    github_fdo = get_repo_fdo(docker_image)
-    if github_fdo is not None:
-        fdo = github_fdo
-        fdo["@id"] = qid
-        fdo.setdefault("kernel", {})["@id"]               = qid
-        fdo.setdefault("kernel", {})["primaryIdentifier"] = qid
-    else:
-        fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
+    fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
+
+    repo_metadata = get_repo_fdo(docker_image)
+    if repo_metadata is not None:
+        for key, value in repo_metadata.items():
+            if key not in ("@id", "@context"):
+                fdo["profile"][key] = value
 
     branch.object(path).upload(
         data=json.dumps(fdo, indent=2).encode(),

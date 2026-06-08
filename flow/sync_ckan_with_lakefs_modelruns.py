@@ -38,6 +38,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
     docker_tag  = metadata.get("docker_tag",  "")
     model_qid   = ""
     if model_name and model_image:
+        log(f"{run_id}: ensuring model FDO for '{model_name}' ({model_image})")
         lakefs_models_repo = os.environ.get("LAKEFS_MODELS_REPO", "models")
         model_qid = ensure_model_fdo(
             docker_image       = model_image,
@@ -45,7 +46,9 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
             docker_tag         = docker_tag,
             lakefs_models_repo = lakefs_models_repo,
             force              = force_recreate,
+            log                = log,
         )
+        log(f"{run_id}: model QID → {model_qid}")
     if model_name:
         ensure_model(
             model_name     = model_name,

@@ -165,6 +165,7 @@ def ensure_model_fdo(
     docker_tag: str,
     lakefs_models_repo: str,
     force: bool = False,
+    log=print,
 ) -> str:
     """
     Ensure a model descriptor FDO exists in the lakeFS models repo.
@@ -183,23 +184,35 @@ def ensure_model_fdo(
         try:
             with branch.object(path).reader() as f:
                 f.read()
+            log(f"  model '{model_name}' ({qid}): already in lakeFS models repo, skipping.")
             return qid  # already present
         except ObjectNotFoundException:
             pass
 
     fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
 
+    if docker_image.startswith("ghcr.io/"):
+        repo_path = docker_image[len("ghcr.io/"):]
+        gh_url = f"https://raw.githubusercontent.com/{repo_path}/HEAD/fdo.json"
+        log(f"  model '{model_name}' ({qid}): trying to get model fdo info from {gh_url}")
+    else:
+        gh_url = None
+
     repo_metadata = get_repo_fdo(docker_image)
     if repo_metadata is not None:
+        log(f"  model '{model_name}' ({qid}): fdo.json found — merging profile metadata.")
         for key, value in repo_metadata.items():
             if key not in ("@id", "@context"):
                 fdo["profile"][key] = value
+    else:
+        log(f"  model '{model_name}' ({qid}): no fdo.json found — writing placeholder.")
 
     branch.object(path).upload(
         data=json.dumps(fdo, indent=2).encode(),
         content_type="application/json",
     )
     branch.commit(message=f"add model fdo for {qid}")
+    log(f"  model '{model_name}' ({qid}): written to lakeFS models repo.")
     return qid
 
 

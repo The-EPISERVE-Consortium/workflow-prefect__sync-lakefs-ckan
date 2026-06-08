@@ -322,6 +322,7 @@ class TestSyncRun:
             docker_tag         = "2.1.0",
             lakefs_models_repo = "models",
             force              = False,
+            log                = print,
         )
         mock_ensure.assert_called_once_with(
             model_name="ct-seg", docker_image="ghcr.io/example/ct-seg",

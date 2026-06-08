@@ -1,5 +1,7 @@
 """OCI registry helpers."""
 
+import json
+
 import requests
 
 _ACCEPT = ", ".join([
@@ -65,3 +67,26 @@ def get_image_created(image: str, tag: str) -> str:
         return config_r.json().get("created", "")
     except Exception:
         return ""
+
+
+def get_repo_fdo(image: str) -> dict | None:
+    """
+    Fetch fdo.json from the GitHub repository associated with a ghcr.io image.
+
+    For ghcr.io/{owner}/{repo}, tries the raw URL
+    https://raw.githubusercontent.com/{owner}/{repo}/HEAD/fdo.json.
+    Returns the parsed dict, or None if not found or on any error.
+    """
+    if not image or not image.startswith("ghcr.io/"):
+        return None
+    repo_path = image[len("ghcr.io/"):]
+    try:
+        r = requests.get(
+            f"https://raw.githubusercontent.com/{repo_path}/HEAD/fdo.json",
+            timeout=10,
+        )
+        if r.status_code == 200:
+            return json.loads(r.text)
+        return None
+    except Exception:
+        return None

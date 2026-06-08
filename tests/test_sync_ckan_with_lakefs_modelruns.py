@@ -12,7 +12,7 @@ from tools.ckan_tools import (
     create_model_run,
     ensure_model,
 )
-from tools.lakefs_tools import get_run_metadata
+from tools.lakefs_tools import ensure_model_fdo, get_run_metadata
 from tools.sharding import shard_qid
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -293,8 +293,10 @@ class TestSyncRun:
         output_files = [f"{_BASE}?path=run-001%2Foutput%2Fresult.nii&presign=false"]
         fdo_bytes     = b'{"@id": "Q1748526042817"}'
         rocrate_bytes = b'{"@context": "rocrate"}'
+        # model_image is present so ensure_model_fdo will be called
         metadata = {
             "model_name":       "ct-seg",
+            "model_image":      "ghcr.io/example/ct-seg",
             "qid":              "Q1748526042817",
             "docker_tag":       "2.1.0",
             "run_timestamp":    "2026-05-15T11:00:42Z",
@@ -305,14 +307,26 @@ class TestSyncRun:
             "input_files":      input_files,
             "output_files":     output_files,
         }
+        fake_model_qid = "Q0000000000001"
 
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
+             patch.object(m, "ensure_model_fdo", return_value=fake_model_qid) as mock_fdo, \
              patch.object(m, "ensure_model") as mock_ensure, \
              patch.object(m, "create_model_run") as mock_create:
             m._do_sync_run("run-001", "model-runs")
 
-        mock_ensure.assert_called_once_with(model_name="ct-seg", docker_image="", docker_tag="2.1.0", force_recreate=False)
+        mock_fdo.assert_called_once_with(
+            docker_image       = "ghcr.io/example/ct-seg",
+            model_name         = "ct-seg",
+            docker_tag         = "2.1.0",
+            lakefs_models_repo = "models",
+            force              = False,
+        )
+        mock_ensure.assert_called_once_with(
+            model_name="ct-seg", docker_image="ghcr.io/example/ct-seg",
+            docker_tag="2.1.0", model_qid=fake_model_qid, force_recreate=False,
+        )
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
             run_id           = "run-001",
@@ -325,21 +339,24 @@ class TestSyncRun:
             rocrate_bytes    = rocrate_bytes,
             input_files      = input_files,
             output_files     = output_files,
+            model_qid        = fake_model_qid,
         )
 
 
     def test_skips_ensure_model_when_model_name_empty(self):
         metadata = {
-            "model_name": "", "qid": "", "docker_tag": "",
+            "model_name": "", "model_image": "", "qid": "", "docker_tag": "",
             "run_timestamp": "", "status": "", "computation_time": "",
             "fdo_bytes": b"", "rocrate_bytes": b"", "input_files": [], "output_files": [],
         }
         with patch.object(m, "_ckan_run_exists", return_value=False), \
              patch.object(m, "get_run_metadata", return_value=metadata), \
+             patch.object(m, "ensure_model_fdo") as mock_fdo, \
              patch.object(m, "ensure_model") as mock_ensure, \
              patch.object(m, "create_model_run"):
             m._do_sync_run("run-001", "model-runs")
 
+        mock_fdo.assert_not_called()
         mock_ensure.assert_not_called()
 
 

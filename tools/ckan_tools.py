@@ -192,6 +192,7 @@ def create_model(
     modality: str = "",
     paper_doi: str = "",
     docker_image_created: str = "",
+    model_qid: str = "",
     force_recreate: bool = False,
 ) -> dict:
     """
@@ -226,6 +227,7 @@ def create_model(
             {"key": "docker_image",        "value": docker_image},
             {"key": "docker_tag",          "value": docker_tag},
             {"key": "docker_image_created","value": docker_image_created},
+            {"key": "model_qid",           "value": model_qid},
             {"key": "algorithm",           "value": algorithm},
             {"key": "input_format",        "value": input_format},
             {"key": "output_format",       "value": output_format},
@@ -235,7 +237,7 @@ def create_model(
     })
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", force_recreate: bool = False) -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     Fields that are not derivable from run metadata are left empty for a human
@@ -248,6 +250,7 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", 
         docker_image         = docker_image,
         docker_tag           = docker_tag,
         docker_image_created = get_image_created(docker_image, docker_tag),
+        model_qid            = model_qid,
         algorithm            = "",
         input_format         = "",
         output_format        = "",
@@ -268,6 +271,7 @@ def create_model_run(
     rocrate_bytes: bytes,
     input_files: list,
     output_files: list,
+    model_qid: str = "",
 ) -> dict:
     """
     Create a model run dataset in CKAN and attach all input and output files
@@ -296,6 +300,7 @@ def create_model_run(
             {"key": "run_id",          "value": run_id},
             {"key": "qid",             "value": qid},
             {"key": "model",           "value": model_name},
+            {"key": "model_qid",       "value": model_qid},
             {"key": "docker_tag",      "value": docker_tag},
             {"key": "run_timestamp",   "value": run_timestamp},
             {"key": "status",          "value": status},

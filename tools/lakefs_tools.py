@@ -1,12 +1,15 @@
 """lakeFS helper functions."""
 
+import hashlib
 import json
 import os
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 import lakefs
 from lakefs.exceptions import ObjectNotFoundException
 
+from tools.github_tools import get_repo_fdo
 from tools.sharding import shard_qid
 
 LAKEFS_BRANCH = "main"
@@ -105,6 +108,137 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "rocrate_bytes":    rocrate_bytes,
         "input_files":      input_files,
         "output_files":     output_files,
+    }
+
+
+def mint_model_qid(docker_image: str) -> str:
+    """Return a stable QID derived from the docker image URI (tag excluded)."""
+    digest = hashlib.sha256(docker_image.encode()).hexdigest()
+    return f"Q{int(digest, 16) % 10**13:013d}"
+
+
+def _build_placeholder_model_fdo(
+    qid: str,
+    docker_image: str,
+    model_name: str,
+    docker_tag: str,
+) -> dict:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "@context": [
+            "https://w3id.org/fdo/context/v1",
+            {
+                "schema": "https://schema.org/",
+                "prov": "http://www.w3.org/ns/prov#",
+                "fdo": "https://w3id.org/fdo/vocabulary/",
+            },
+        ],
+        "@id":   qid,
+        "@type": "DigitalObject",
+        "kernel": {
+            "@id":               qid,
+            "digitalObjectType": "https://schema.org/SoftwareApplication",
+            "primaryIdentifier": qid,
+            "kernelVersion":     "v1",
+            "immutable":         False,
+            "modified":          now,
+        },
+        "profile": {
+            "@context":        "https://schema.org/",
+            "@type":           "SoftwareApplication",
+            "@id":             qid,
+            "name":            model_name,
+            "description":     f"Auto-created placeholder for model '{model_name}'.",
+            "url":             docker_image,
+            "softwareVersion": docker_tag,
+        },
+        "provenance": {
+            "prov:generatedAtTime": now,
+            "prov:wasAttributedTo": "EPISERVE Consortium sync-lakefs-ckan",
+        },
+    }
+
+
+def ensure_model_fdo(
+    docker_image: str,
+    model_name: str,
+    docker_tag: str,
+    lakefs_models_repo: str,
+    force: bool = False,
+) -> str:
+    """
+    Ensure a model descriptor FDO exists in the lakeFS models repo.
+
+    Checks the model's GitHub source repo for an existing fdo.json; if found,
+    copies it (with QID overridden) to lakeFS. Otherwise writes a placeholder.
+    Returns the stable model QID derived from docker_image.
+    """
+    qid    = mint_model_qid(docker_image)
+    path   = f"{shard_qid(qid)}/{qid}.fdo.json"
+    client = _lakefs_client()
+    branch = lakefs.Repository(lakefs_models_repo, client=client).branch(LAKEFS_BRANCH)
+
+    if not force:
+        try:
+            with branch.object(path).reader() as f:
+                f.read()
+            return qid  # already present
+        except ObjectNotFoundException:
+            pass
+
+    github_fdo = get_repo_fdo(docker_image)
+    if github_fdo is not None:
+        fdo = github_fdo
+        fdo["@id"] = qid
+        fdo.setdefault("kernel", {})["@id"]               = qid
+        fdo.setdefault("kernel", {})["primaryIdentifier"] = qid
+    else:
+        fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
+
+    branch.object(path).upload(
+        data=json.dumps(fdo, indent=2).encode(),
+        content_type="application/json",
+    )
+    branch.commit(message=f"add model fdo for {qid}")
+    return qid
+
+
+def list_models(lakefs_models_repo: str) -> list:
+    """Return QIDs of all model descriptor FDOs in <lakefs_models_repo>/main."""
+    client = _lakefs_client()
+    repo   = lakefs.Repository(lakefs_models_repo, client=client)
+    branch = repo.branch(LAKEFS_BRANCH)
+    return [
+        entry.path.split("/")[-1].removesuffix(".fdo.json")
+        for entry in branch.objects()
+        if entry.path.endswith(".fdo.json")
+    ]
+
+
+def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
+    """Read a model descriptor FDO and return a flat metadata dict."""
+    client = _lakefs_client()
+    branch = lakefs.Repository(lakefs_models_repo, client=client).branch(LAKEFS_BRANCH)
+    path   = f"{shard_qid(model_qid)}/{model_qid}.fdo.json"
+    with branch.object(path).reader() as f:
+        fdo = json.loads(f.read())
+
+    profile = fdo.get("profile", {})
+    extras  = {e.get("key", ""): e.get("value", "") for e in fdo.get("extras", [])} if isinstance(fdo.get("extras"), list) else {}
+    return {
+        "name":                 profile.get("name",            ""),
+        "description":          profile.get("description",     ""),
+        "docker_image":         profile.get("url",             ""),
+        "docker_tag":           profile.get("softwareVersion", ""),
+        "git_repo":             extras.get("git_repo",         ""),
+        "algorithm":            extras.get("algorithm",        ""),
+        "input_format":         extras.get("input_format",     ""),
+        "output_format":        extras.get("output_format",    ""),
+        "lead_researcher":      extras.get("lead_researcher",  ""),
+        "domain":               extras.get("domain",           ""),
+        "modality":             extras.get("modality",         ""),
+        "paper_doi":            extras.get("paper_doi",        ""),
+        "docker_image_created": extras.get("docker_image_created", ""),
     }
 
 

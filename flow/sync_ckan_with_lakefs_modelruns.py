@@ -5,12 +5,14 @@ lakeFS (e.g. Q1748526042817/). The flow reads the RO-Crate metadata,
 uploads it to CKAN, and registers all input/output files as resources.
 """
 
+import os
+
 from lakefs.exceptions import ObjectNotFoundException
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
 from tools.ckan_tools import _ckan_delete_run, _ckan_run_exists, create_model_run, ensure_model
-from tools.lakefs_tools import get_run_metadata, list_runs
+from tools.lakefs_tools import ensure_model_fdo, get_run_metadata, list_runs
 
 
 def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: bool = False) -> None:
@@ -31,19 +33,32 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         return
 
     log(f"{run_id}: syncing...")
-    model_name = metadata.get("model_name", "")
+    model_name  = metadata.get("model_name",  "")
+    model_image = metadata.get("model_image", "")
+    docker_tag  = metadata.get("docker_tag",  "")
+    model_qid   = ""
+    if model_name and model_image:
+        lakefs_models_repo = os.environ.get("LAKEFS_MODELS_REPO", "models")
+        model_qid = ensure_model_fdo(
+            docker_image       = model_image,
+            model_name         = model_name,
+            docker_tag         = docker_tag,
+            lakefs_models_repo = lakefs_models_repo,
+            force              = force_recreate,
+        )
     if model_name:
         ensure_model(
             model_name     = model_name,
-            docker_image   = metadata.get("model_image", ""),
-            docker_tag     = metadata.get("docker_tag",  ""),
+            docker_image   = model_image,
+            docker_tag     = docker_tag,
+            model_qid      = model_qid,
             force_recreate = force_recreate,
         )
     create_model_run(
-        model_name       = metadata.get("model_name",       ""),
+        model_name       = model_name,
         run_id           = run_id,
         qid              = metadata.get("qid",              ""),
-        docker_tag       = metadata.get("docker_tag",       ""),
+        docker_tag       = docker_tag,
         run_timestamp    = metadata.get("run_timestamp",    ""),
         status           = metadata.get("status",           ""),
         computation_time = metadata.get("computation_time", ""),
@@ -51,6 +66,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         rocrate_bytes    = metadata.get("rocrate_bytes", b""),
         input_files      = metadata.get("input_files",  []),
         output_files     = metadata.get("output_files", []),
+        model_qid        = model_qid,
     )
     log(f"{run_id}: done.")
 

@@ -46,7 +46,7 @@ def _post_response(result):
 
 class TestCreateModel:
     def test_idempotent_returns_existing_without_package_create(self):
-        existing = {"id": "abc", "name": "my-model"}
+        existing = {"id": "abc", "name": "my-model", "notes": "A CT segmentation model.", "url": "https://github.com/example/ct-seg"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -130,6 +130,51 @@ class TestCreateModel:
             )
 
         assert result == new_pkg
+
+    def test_patches_placeholder_description_when_real_one_provided(self):
+        existing = {"id": "abc", "name": "my-model", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model:my-model)", "url": ""}
+        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model:my-model)", "url": "https://github.com/example/model"}
+
+        get_mock = MagicMock()
+        get_mock.json.return_value = {"success": True, "result": existing}
+
+        def get_side(url, **_):
+            if "package_show" in url:
+                return get_mock
+            return _vocab_get_response()
+
+        with patch("requests.get", side_effect=get_side), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response(patched)
+            result = create_model(
+                name="my-model", description="Real description.",
+                git_repo="https://github.com/example/model",
+                docker_image="", docker_tag="", algorithm="",
+                input_format="", output_format="", lead_researcher="",
+            )
+
+        assert "package_patch" in mock_post.call_args[0][0]
+        payload = mock_post.call_args[1]["json"]
+        assert "Real description." in payload["notes"]
+        assert payload["url"] == "https://github.com/example/model"
+        assert result == patched
+
+    def test_no_patch_when_description_already_real(self):
+        existing = {"id": "abc", "name": "my-model", "notes": "Already a real description.", "url": ""}
+
+        get_mock = MagicMock()
+        get_mock.json.return_value = {"success": True, "result": existing}
+
+        with patch("requests.get", return_value=get_mock), \
+             patch("requests.post") as mock_post:
+            result = create_model(
+                name="my-model", description="New description.",
+                git_repo="", docker_image="", docker_tag="", algorithm="",
+                input_format="", output_format="", lead_researcher="",
+            )
+
+        mock_post.assert_not_called()
+        assert result == existing
 
 
 # ── ensure_model ──────────────────────────────────────────────────────────────
@@ -327,7 +372,8 @@ class TestSyncRun:
         )
         mock_ensure.assert_called_once_with(
             model_name="ct-seg", docker_image="ghcr.io/example/ct-seg",
-            docker_tag="2.1.0", model_qid=fake_model_qid, fdo_bytes=fake_fdo_bytes, force_recreate=False,
+            docker_tag="2.1.0", model_qid=fake_model_qid, fdo_bytes=fake_fdo_bytes,
+            description="", git_repo="", force_recreate=False,
         )
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",

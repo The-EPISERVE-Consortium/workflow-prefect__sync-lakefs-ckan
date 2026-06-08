@@ -208,7 +208,16 @@ def create_model(
     body = _parse_json(r, "package_show")
     if body["success"]:
         if not force_recreate:
-            return body["result"]
+            pkg = body["result"]
+            patch = {}
+            if description and "Auto-created placeholder" in (pkg.get("notes") or ""):
+                patch["notes"] = f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model:{name})"
+            if git_repo and not pkg.get("url"):
+                patch["url"] = git_repo
+            if patch:
+                patch["id"] = name
+                pkg = _ckan_api("package_patch", patch)
+            return pkg
         _ckan_api("package_delete", {"id": name})
 
     vocabs = _vocabs()
@@ -241,16 +250,17 @@ def create_model(
     return pkg
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", force_recreate: bool = False) -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", description: str = "", git_repo: str = "", force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
-    Fields that are not derivable from run metadata are left empty for a human
-    to fill in via the CKAN UI.
+    When description/git_repo are provided they are used; otherwise a placeholder
+    description is written and the url is left empty for a human to fill in.
+    If the model already exists with a placeholder, it is patched in-place.
     """
     return create_model(
         name                 = model_name,
-        description          = f"Auto-created placeholder for model '{model_name}'.",
-        git_repo             = "",
+        description          = description or f"Auto-created placeholder for model '{model_name}'.",
+        git_repo             = git_repo,
         docker_image         = docker_image,
         docker_tag           = docker_tag,
         docker_image_created = get_image_created(docker_image, docker_tag),

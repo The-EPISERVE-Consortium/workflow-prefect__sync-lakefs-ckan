@@ -5,6 +5,7 @@ lakeFS (e.g. Q1748526042817/). The flow reads the RO-Crate metadata,
 uploads it to CKAN, and registers all input/output files as resources.
 """
 
+import json
 import os
 
 from lakefs.exceptions import ObjectNotFoundException
@@ -51,12 +52,18 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         )
         log(f"{run_id}: model QID → {model_qid}")
     if model_name:
+        try:
+            _fdo_profile = json.loads(model_fdo_bytes).get("profile", {}) if model_fdo_bytes else {}
+        except Exception:
+            _fdo_profile = {}
         ensure_model(
             model_name     = model_name,
             docker_image   = model_image,
             docker_tag     = docker_tag,
             model_qid      = model_qid,
             fdo_bytes      = model_fdo_bytes,
+            description    = _fdo_profile.get("description", ""),
+            git_repo       = _fdo_profile.get("codeRepository", ""),
             force_recreate = force_recreate,
         )
     create_model_run(

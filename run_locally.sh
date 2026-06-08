@@ -35,7 +35,7 @@ if [[ $# -eq 0 ]]; then
   echo "  run_locally.sh --sync-all"
   echo "  run_locally.sh --sync-all --force-recreate"
   echo "  run_locally.sh --sync-data --update"
-  echo "  run_locally.sh --register-model ghcr.io/the-episerve-consortium/model__prediction__grippeweb__baseline-nullmodel"
+  echo "  run_locally.sh --register-model ghcr.io/the-episerve-consortium/model__prediction__generic__timesfm --force-recreate"
   exit 0
 fi
 

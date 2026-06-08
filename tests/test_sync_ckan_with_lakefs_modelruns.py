@@ -46,7 +46,7 @@ def _post_response(result):
 
 class TestCreateModel:
     def test_idempotent_returns_existing_without_package_create(self):
-        existing = {"id": "abc", "name": "my-model", "notes": "A CT segmentation model.", "url": "https://github.com/example/ct-seg"}
+        existing = {"id": "abc", "name": "q0000000000001", "title": "my-model", "notes": "A CT segmentation model.", "url": "https://github.com/example/ct-seg"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -65,6 +65,7 @@ class TestCreateModel:
                 lead_researcher="dr. smith",
                 domain="imaging",
                 modality="ct-scan",
+                model_qid="Q0000000000001",
             )
 
         assert result == existing
@@ -72,12 +73,12 @@ class TestCreateModel:
         mock_get.assert_called_once()
 
     def test_force_recreate_deletes_then_creates(self):
-        existing = {"id": "abc", "name": "my-model"}
+        existing = {"id": "abc", "name": "q0000000000001"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
 
-        new_pkg = {"id": "new-abc", "name": "my-model"}
+        new_pkg = {"id": "new-abc", "name": "q0000000000001"}
 
         def get_side_effect(url, **_):
             if "package_show" in url:
@@ -94,7 +95,7 @@ class TestCreateModel:
                 name="my-model", description="desc",
                 git_repo="", docker_image="", docker_tag="",
                 algorithm="", input_format="", output_format="",
-                lead_researcher="", force_recreate=True,
+                lead_researcher="", model_qid="Q0000000000001", force_recreate=True,
             )
 
         assert result == new_pkg
@@ -106,7 +107,7 @@ class TestCreateModel:
         not_found_mock = MagicMock()
         not_found_mock.json.return_value = {"success": False, "error": {"message": "Not found"}}
 
-        new_pkg = {"id": "new-id", "name": "my-model"}
+        new_pkg = {"id": "new-id", "name": "q0000000000001"}
 
         def get_side_effect(url, **_):
             if "package_show" in url:
@@ -114,7 +115,7 @@ class TestCreateModel:
             return _vocab_get_response()
 
         with patch("requests.get", side_effect=get_side_effect), \
-             patch("requests.post", return_value=_post_response(new_pkg)):
+             patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
             result = create_model(
                 name="my-model",
                 description="desc",
@@ -127,13 +128,17 @@ class TestCreateModel:
                 lead_researcher="dr. jones",
                 domain="imaging",
                 modality="ct-scan",
+                model_qid="Q0000000000001",
             )
 
         assert result == new_pkg
+        payload = mock_post.call_args[1]["json"]
+        assert payload["name"]  == "q0000000000001"
+        assert payload["title"] == "my-model"
 
     def test_patches_placeholder_description_when_real_one_provided(self):
-        existing = {"id": "abc", "name": "my-model", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:)", "url": ""}
-        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:)", "url": "https://github.com/example/model"}
+        existing = {"id": "abc", "name": "q0000000000001", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:Q0000000000001)", "url": ""}
+        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:Q0000000000001)", "url": "https://github.com/example/model"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -151,6 +156,7 @@ class TestCreateModel:
                 git_repo="https://github.com/example/model",
                 docker_image="", docker_tag="", algorithm="",
                 input_format="", output_format="", lead_researcher="",
+                model_qid="Q0000000000001",
             )
 
         assert "package_patch" in mock_post.call_args[0][0]
@@ -160,7 +166,7 @@ class TestCreateModel:
         assert result == patched
 
     def test_no_patch_when_description_already_real(self):
-        existing = {"id": "abc", "name": "my-model", "notes": "Already a real description.", "url": ""}
+        existing = {"id": "abc", "name": "q0000000000001", "notes": "Already a real description.", "url": ""}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -171,6 +177,7 @@ class TestCreateModel:
                 name="my-model", description="New description.",
                 git_repo="", docker_image="", docker_tag="", algorithm="",
                 input_format="", output_format="", lead_researcher="",
+                model_qid="Q0000000000001",
             )
 
         mock_post.assert_not_called()
@@ -192,11 +199,12 @@ class TestEnsureModel:
 
         with patch("requests.get", side_effect=get_side_effect), \
              patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
-            result = ensure_model("ct-seg", docker_image="ghcr.io/example/ct-seg", docker_tag="2.1.0")
+            result = ensure_model("ct-seg", docker_image="ghcr.io/example/ct-seg", docker_tag="2.1.0", model_qid="Q0000000000001")
 
         assert result == new_pkg
         payload = mock_post.call_args[1]["json"]
-        assert payload["name"] == "ct-seg"
+        assert payload["name"]  == "q0000000000001"
+        assert payload["title"] == "ct-seg"
         extras = {e["key"]: e["value"] for e in payload["extras"]}
         assert extras["docker_image"] == "ghcr.io/example/ct-seg"
 
@@ -207,7 +215,7 @@ class TestEnsureModel:
 
         with patch("requests.get", return_value=get_mock), \
              patch("requests.post") as mock_post:
-            result = ensure_model("ct-seg")
+            result = ensure_model("ct-seg", model_qid="Q0000000000001")
 
         assert result == existing
         mock_post.assert_not_called()
@@ -225,7 +233,7 @@ class TestEnsureModel:
         with patch("tools.ckan_tools.get_image_created", return_value="2025-11-14T09:32:17Z"), \
              patch("requests.get", side_effect=get_side_effect), \
              patch("requests.post", return_value=_post_response(new_pkg)) as mock_post:
-            ensure_model("mymodel", docker_image="ghcr.io/org/mymodel", docker_tag="1.0")
+            ensure_model("mymodel", docker_image="ghcr.io/org/mymodel", docker_tag="1.0", model_qid="Q0000000000001")
 
         extras = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
         assert extras["docker_image_created"] == "2025-11-14T09:32:17Z"

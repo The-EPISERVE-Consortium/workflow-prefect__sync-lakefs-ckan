@@ -211,7 +211,8 @@ class TestDoSyncModel:
             m._do_sync_model("Q1234567890123", "models")
 
         payload = mock_post.call_args[1]["json"]
-        assert payload["name"] == "my-model"
+        assert payload["name"]  == "q1234567890123"
+        assert payload["title"] == "my-model"
         extras = {e["key"]: e["value"] for e in payload["extras"]}
         assert extras["model_qid"] == "Q1234567890123"
 

@@ -204,7 +204,8 @@ def create_model(
     standard CKAN url field (shown as 'Source'). The description includes a
     'Browse all runs' link pointing to the filtered run search.
     """
-    r = requests.get(f"{_ckan_url()}/api/3/action/package_show?id={name}")
+    slug = model_qid.lower()
+    r = requests.get(f"{_ckan_url()}/api/3/action/package_show?id={slug}")
     body = _parse_json(r, "package_show")
     if body["success"]:
         if not force_recreate:
@@ -215,14 +216,14 @@ def create_model(
             if git_repo and not pkg.get("url"):
                 patch["url"] = git_repo
             if patch:
-                patch["id"] = name
+                patch["id"] = slug
                 pkg = _ckan_api("package_patch", patch)
             return pkg
-        _ckan_api("package_delete", {"id": name})
+        _ckan_api("package_delete", {"id": slug})
 
     vocabs = _vocabs()
     pkg = _ckan_api("package_create", {
-        "name":      name,
+        "name":      slug,
         "title":     name,
         "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})",
         "owner_org": "episerve",

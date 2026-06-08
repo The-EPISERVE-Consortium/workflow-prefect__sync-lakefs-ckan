@@ -50,14 +50,25 @@ def list_runs(lakefs_run_repo: str) -> list:
     ]
 
 
-def _qid_from_lakefs_uri(uri: str) -> str:
-    """Extract the QID segment from a lakefs://repo/branch/.../QNNN/file path."""
-    if not uri.startswith("lakefs://"):
+def _qid_from_uri(uri: str) -> str:
+    """Extract a QID from a lakefs:// or DOIP retrieve URL.
+
+    lakefs://repo/branch/.../QNNN/file  → first path segment starting with Q+digits
+    https://.../doip/retrieve/QNNN/...  → segment immediately after /doip/retrieve/
+    """
+    if uri.startswith("lakefs://"):
+        parts = uri[len("lakefs://"):].split("/")
+        for part in parts:
+            if part.upper().startswith("Q") and part[1:].isdigit():
+                return part.upper()
         return ""
-    parts = uri[len("lakefs://"):].split("/")
-    for part in parts:
-        if part.upper().startswith("Q") and part[1:].isdigit():
-            return part.upper()
+    marker = "/doip/retrieve/"
+    idx = uri.find(marker)
+    if idx != -1:
+        after = uri[idx + len(marker):]
+        qid_candidate = after.split("/")[0]
+        if qid_candidate.upper().startswith("Q") and qid_candidate[1:].isdigit():
+            return qid_candidate.upper()
     return ""
 
 
@@ -121,7 +132,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     input_dataset_qids = []
     for entry in provenance.get("prov:used", []):
         src_uri = entry.get("@id", "") if isinstance(entry, dict) else str(entry)
-        qid_part = _qid_from_lakefs_uri(src_uri)
+        qid_part = _qid_from_uri(src_uri)
         if qid_part and qid_part not in input_dataset_qids:
             input_dataset_qids.append(qid_part)
 

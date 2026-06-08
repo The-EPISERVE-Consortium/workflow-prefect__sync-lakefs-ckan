@@ -238,20 +238,21 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
     profile = fdo.get("profile", {})
     extras  = {e.get("key", ""): e.get("value", "") for e in fdo.get("extras", [])} if isinstance(fdo.get("extras"), list) else {}
     return {
-        "name":                 profile.get("name",            ""),
-        "description":          profile.get("description",     ""),
-        "docker_image":         profile.get("url",             ""),
-        "docker_tag":           profile.get("softwareVersion", ""),
-        "git_repo":             profile.get("codeRepository", "") or extras.get("git_repo", ""),
-        "algorithm":            extras.get("algorithm",        ""),
-        "input_format":         extras.get("input_format",     ""),
-        "output_format":        extras.get("output_format",    ""),
-        "lead_researcher":      extras.get("lead_researcher",  ""),
-        "domain":               extras.get("domain",           ""),
-        "modality":             extras.get("modality",         ""),
-        "paper_doi":            extras.get("paper_doi",        ""),
-        "docker_image_created": extras.get("docker_image_created", ""),
-        "fdo_bytes":            raw,
+        "name":                  profile.get("name",              ""),
+        "description":           profile.get("description",       ""),
+        "docker_image":          profile.get("url",               ""),
+        "docker_tag":            profile.get("softwareVersion",   ""),
+        "git_repo":              profile.get("codeRepository",    "") or extras.get("git_repo", ""),
+        "algorithm":             extras.get("algorithm",          ""),
+        "input_format":          extras.get("input_format",       ""),
+        "output_format":         extras.get("output_format",      ""),
+        "lead_researcher":       extras.get("lead_researcher",    ""),
+        "domain":                extras.get("domain",             ""),
+        "modality":              extras.get("modality",           ""),
+        "paper_doi":             extras.get("paper_doi",          ""),
+        "docker_image_created":  extras.get("docker_image_created", ""),
+        "additional_properties": profile.get("additionalProperty", []),
+        "fdo_bytes":             raw,
     }
 
 

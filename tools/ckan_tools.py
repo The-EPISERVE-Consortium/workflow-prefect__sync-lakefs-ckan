@@ -1,5 +1,6 @@
 """CKAN helper functions and dataset creation utilities."""
 
+import json
 import os
 from datetime import datetime
 from functools import lru_cache
@@ -194,6 +195,7 @@ def create_model(
     docker_image_created: str = "",
     model_qid: str = "",
     fdo_bytes: bytes = b"",
+    additional_properties: list = [],
     force_recreate: bool = False,
 ) -> dict:
     """
@@ -244,6 +246,8 @@ def create_model(
             {"key": "output_format",       "value": output_format},
             {"key": "lead_researcher",     "value": lead_researcher},
             {"key": "paper_doi",           "value": paper_doi},
+            *([{"key": "model_parameters", "value": json.dumps(additional_properties)}]
+              if additional_properties else []),
         ],
     })
     if fdo_bytes and model_qid:

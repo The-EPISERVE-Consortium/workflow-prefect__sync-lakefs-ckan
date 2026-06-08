@@ -130,11 +130,13 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
             output_files.append(_doip_url(run_id, comp_id))
 
     input_dataset_qids = []
+    data_transformation_sql = []
     for entry in provenance.get("prov:used", []):
         src_uri = entry.get("@id", "") if isinstance(entry, dict) else str(entry)
         qid_part = _qid_from_uri(src_uri)
         if qid_part and qid_part not in input_dataset_qids:
             input_dataset_qids.append(qid_part)
+            data_transformation_sql.append(entry.get("schema:query", "") if isinstance(entry, dict) else "")
 
     try:
         rocrate_obj = branch.object(f"{shard_qid(run_id)}/components/ro-crate-metadata.json")
@@ -155,9 +157,10 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "computation_time":    "",
         "fdo_bytes":           raw,
         "rocrate_bytes":       rocrate_bytes,
-        "input_files":         input_files,
-        "output_files":        output_files,
-        "input_dataset_qids":  input_dataset_qids,
+        "input_files":            input_files,
+        "output_files":           output_files,
+        "input_dataset_qids":     input_dataset_qids,
+        "data_transformation_sql": data_transformation_sql,
     }
 
 

@@ -79,8 +79,9 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         rocrate_bytes       = metadata.get("rocrate_bytes",    b""),
         input_files         = metadata.get("input_files",      []),
         output_files        = metadata.get("output_files",     []),
-        model_qid           = model_qid,
-        input_dataset_qids  = metadata.get("input_dataset_qids", []),
+        model_qid                = model_qid,
+        input_dataset_qids       = metadata.get("input_dataset_qids", []),
+        data_transformation_sql  = metadata.get("data_transformation_sql", []),
     )
     log(f"{run_id}: done.")
 

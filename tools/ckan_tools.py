@@ -144,6 +144,7 @@ def update_raw_dataset(
     description: str,
     source_url: str,
     modified: str,
+    additional_type: str = "",
 ) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
@@ -156,7 +157,7 @@ def update_raw_dataset(
         raise RuntimeError(f"update_raw_dataset called on non-existent dataset {qid}")
 
     current_extras = {e["key"]: e["value"] for e in pkg.get("extras", [])}
-    desired_extras = {"dataset_type": "raw-data", "qid": qid, "modified": modified}
+    desired_extras = {"dataset_type": "raw-data", "qid": qid, "modified": modified, "additional_type": additional_type}
 
     changed: dict = {}
     for field, desired in [("title", name), ("notes", description), ("url", source_url)]:
@@ -380,6 +381,7 @@ def create_raw_dataset(
     modified: str,
     components: list,
     fdo_bytes: bytes,
+    additional_type: str = "",
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -397,9 +399,10 @@ def create_raw_dataset(
         "url":       source_url,
         "groups":    [{"name": "type-raw-data"}],
         "extras": [
-            {"key": "dataset_type", "value": "raw-data"},
-            {"key": "qid",          "value": qid},
-            {"key": "modified",     "value": modified},
+            {"key": "dataset_type",    "value": "raw-data"},
+            {"key": "qid",             "value": qid},
+            {"key": "modified",        "value": modified},
+            {"key": "additional_type", "value": additional_type},
         ],
     })
 

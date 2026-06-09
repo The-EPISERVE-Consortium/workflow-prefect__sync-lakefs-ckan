@@ -31,11 +31,12 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
         if update:
             log(f"{qid}: updating...")
             changed = update_raw_dataset(
-                qid         = qid,
-                name        = metadata["name"],
-                description = metadata["description"],
-                source_url  = metadata["source_url"],
-                modified    = metadata["modified"],
+                qid             = qid,
+                name            = metadata["name"],
+                description     = metadata["description"],
+                source_url      = metadata["source_url"],
+                modified        = metadata["modified"],
+                additional_type = metadata.get("additional_type", ""),
             )
             if changed:
                 diff = ", ".join(f"{k} {old!r} → {new!r}" for k, (old, new) in changed.items())
@@ -51,13 +52,14 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
 
     log(f"{qid}: syncing...")
     create_raw_dataset(
-        qid         = qid,
-        name        = metadata["name"],
-        description = metadata["description"],
-        source_url  = metadata["source_url"],
-        modified    = metadata["modified"],
-        components  = metadata["components"],
-        fdo_bytes   = metadata["fdo_bytes"],
+        qid             = qid,
+        name            = metadata["name"],
+        description     = metadata["description"],
+        source_url      = metadata["source_url"],
+        modified        = metadata["modified"],
+        components      = metadata["components"],
+        fdo_bytes       = metadata["fdo_bytes"],
+        additional_type = metadata.get("additional_type", ""),
     )
     log(f"{qid}: done.")
 

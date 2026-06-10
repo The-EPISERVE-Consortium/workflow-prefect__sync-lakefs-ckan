@@ -20,6 +20,7 @@ from tools.sharding import shard_qid
 @pytest.fixture(autouse=True)
 def required_env(monkeypatch):
     monkeypatch.setenv("CKAN_API_TOKEN",    "test-ckan-token")
+    monkeypatch.setenv("CKAN_HOST",         "https://data.episerve.zib.de")
     monkeypatch.setenv("LAKEFS_ACCESS_KEY", "test-access-key")
     monkeypatch.setenv("LAKEFS_SECRET_KEY", "test-secret-key")
 
@@ -245,6 +246,39 @@ _BASE = "http://test-lakefs/api/v1/repositories/model-runs/refs/main/objects"
 
 
 class TestCreateModelRun:
+    def test_package_create_notes_describe_model_run_context(self):
+        """Verify model-run CKAN notes include context and dataset links."""
+        pkg = {"id": "pkg-123", "name": "run-2026-001"}
+
+        with patch("requests.get", return_value=_vocab_get_response()), \
+             patch("requests.post", return_value=_post_response(pkg)) as mock_post:
+            create_model_run(
+                model_name              = "ct-seg",
+                run_id                  = "Q1748526042817",
+                qid                     = "Q1748526042817",
+                docker_tag              = "2.1.0",
+                run_timestamp           = "2026-05-15T11:00:00Z",
+                status                  = "success",
+                computation_time        = "",
+                fdo_bytes               = b"",
+                rocrate_bytes           = b"",
+                input_files             = ["input.log"],
+                output_files            = ["output.nii"],
+                model_qid               = "Q0000000000001",
+                input_dataset_qids      = ["Q8975529567540"],
+                data_transformation_sql = ["SELECT * FROM source"],
+            )
+
+        notes = mock_post.call_args_list[0][1]["json"]["notes"]
+        assert "This item represents a run of model [ct-seg](https://data.episerve.zib.de/dataset/q0000000000001) applied on dataset [Q8975529567540](https://data.episerve.zib.de/dataset/q8975529567540)." in notes
+        assert "The run is identified by" not in notes
+        assert "It is linked to model descriptor" not in notes
+        assert "The model container tag was" not in notes
+        assert "The run timestamp is" not in notes
+        assert "The run status is" not in notes
+        assert "CKAN contains" not in notes
+        assert "```sql\nSELECT * FROM source\n```" in notes
+
     def test_calls_package_create_once_and_resource_create_per_file(self):
         pkg = {"id": "pkg-123", "name": "run-2026-001"}
         input_files  = [f"{_BASE}?path=run-2026-001%2Finput%2Fconfig.yaml&presign=false"]

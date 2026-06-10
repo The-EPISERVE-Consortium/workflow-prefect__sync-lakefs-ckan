@@ -98,6 +98,71 @@ def _vtag(vocabs: dict, vocab: str, value: str) -> dict:
     return {"name": value, "vocabulary_id": vocabs[vocab]}
 
 
+def _dataset_link(qid: str) -> str:
+    """Return a CKAN markdown link for a dataset QID.
+
+    Args:
+        qid: Dataset QID to link to.
+
+    Returns:
+        str: Markdown link pointing at the CKAN dataset page.
+    """
+    return f"[{qid}]({_ckan_url().rstrip('/')}/dataset/{qid.lower()})"
+
+
+def _model_run_notes(
+    model_name: str,
+    run_id: str,
+    qid: str,
+    docker_tag: str,
+    run_timestamp: str,
+    status: str,
+    input_files: list,
+    output_files: list,
+    model_qid: str = "",
+    input_dataset_qids: list | None = None,
+    data_transformation_sql: list | None = None,
+) -> str:
+    """Build descriptive CKAN notes for a model-run dataset.
+
+    Args:
+        model_name: Human-readable model name.
+        run_id: Identifier used as the CKAN dataset name.
+        qid: FAIR Digital Object QID for the run.
+        docker_tag: Docker image tag used by the run.
+        run_timestamp: Timestamp recorded for the run.
+        status: Run status inferred from RO-Crate metadata.
+        input_files: Input resource URLs attached to the run.
+        output_files: Output resource URLs attached to the run.
+        model_qid: QID of the associated model descriptor.
+        input_dataset_qids: QIDs of datasets used as run inputs.
+        data_transformation_sql: SQL statements recorded for input transformations.
+
+    Returns:
+        str: Markdown text for CKAN's notes field.
+    """
+    dataset_qids = input_dataset_qids or []
+    sql_statements = [sql for sql in (data_transformation_sql or []) if sql]
+
+    model_text = f"[{model_name}]({_ckan_url().rstrip('/')}/dataset/{model_qid.lower()})" if model_qid else model_name
+
+    if dataset_qids:
+        dataset_text = ", ".join(_dataset_link(dataset_qid) for dataset_qid in dataset_qids)
+        first_sentence = f"This item represents a run of model {model_text} applied on dataset {dataset_text}."
+    else:
+        first_sentence = f"This item represents a run of model {model_text}."
+
+    lines = [first_sentence]
+
+    if sql_statements:
+        lines.append("")
+        lines.append("Recorded data transformation SQL:")
+        for sql in sql_statements:
+            lines.extend(["", "```sql", sql, "```"])
+
+    return "\n".join(lines)
+
+
 def _ckan_delete_run(run_id: str) -> None:
     """Delete a CKAN dataset by run_id (no-op if it does not exist)."""
     _ckan_api("package_delete", {"id": run_id.lower()})
@@ -322,7 +387,19 @@ def create_model_run(
     pkg = _ckan_api("package_create", {
         "name":      run_id.lower(),
         "title":     f"Model-run with model: {model_name} [{_fmt_ts(run_timestamp)}]",
-        "notes":     f"Model run {run_id} of {model_name}.",
+        "notes":     _model_run_notes(
+            model_name              = model_name,
+            run_id                  = run_id,
+            qid                     = qid,
+            docker_tag              = docker_tag,
+            run_timestamp           = run_timestamp,
+            status                  = status,
+            input_files             = input_files,
+            output_files            = output_files,
+            model_qid               = model_qid,
+            input_dataset_qids      = input_dataset_qids,
+            data_transformation_sql = data_transformation_sql,
+        ),
         "owner_org": "episerve",
         "groups":    [{"name": "type-model-run"}],
         "tags": [

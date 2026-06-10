@@ -105,6 +105,7 @@ class TestCreateModel:
         assert "package_create" in create_call[0][0]
 
     def test_creates_dataset_when_not_found(self):
+        """Verify a new model dataset receives descriptive CKAN notes."""
         not_found_mock = MagicMock()
         not_found_mock.json.return_value = {"success": False, "error": {"message": "Not found"}}
 
@@ -136,10 +137,16 @@ class TestCreateModel:
         payload = mock_post.call_args[1]["json"]
         assert payload["name"]  == "q0000000000001"
         assert payload["title"] == "my-model"
+        assert payload["notes"] == (
+            "This item represents the model my-model.\n\n"
+            "desc\n\n"
+            "Model runs created with this descriptor are linked below.\n\n"
+            "### [Browse all runs →](https://data.episerve.zib.de/dataset?q=extras_model_qid:Q0000000000001)"
+        )
 
     def test_patches_placeholder_description_when_real_one_provided(self):
         existing = {"id": "abc", "name": "q0000000000001", "notes": "Auto-created placeholder for model 'my-model'.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:Q0000000000001)", "url": ""}
-        patched  = {**existing, "notes": "Real description.\n\n### [Browse all runs →](http://ckan/dataset?q=extras_model_qid:Q0000000000001)", "url": "https://github.com/example/model"}
+        patched  = {**existing, "notes": "This item represents the model my-model.\n\nModel runs created with this descriptor are linked below.\n\nReal description.\n\n### [Browse all runs →](https://data.episerve.zib.de/dataset?q=extras_model_qid:Q0000000000001)", "url": "https://github.com/example/model"}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -162,7 +169,12 @@ class TestCreateModel:
 
         assert "package_patch" in mock_post.call_args[0][0]
         payload = mock_post.call_args[1]["json"]
-        assert "Real description." in payload["notes"]
+        assert payload["notes"] == (
+            "This item represents the model my-model.\n\n"
+            "Real description.\n\n"
+            "Model runs created with this descriptor are linked below.\n\n"
+            "### [Browse all runs →](https://data.episerve.zib.de/dataset?q=extras_model_qid:Q0000000000001)"
+        )
         assert payload["url"] == "https://github.com/example/model"
         assert result == patched
 

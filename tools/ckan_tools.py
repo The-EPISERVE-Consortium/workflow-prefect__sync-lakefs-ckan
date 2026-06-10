@@ -163,6 +163,33 @@ def _model_run_notes(
     return "\n".join(lines)
 
 
+def _model_notes(name: str, description: str, model_qid: str) -> str:
+    """Build descriptive CKAN notes for a model descriptor dataset.
+
+    Args:
+        name: Human-readable model name.
+        description: Model description from the FDO profile.
+        model_qid: QID of the model descriptor.
+
+    Returns:
+        str: Markdown text for CKAN's notes field.
+    """
+    lines = [
+        f"This item represents the model {name}.",
+    ]
+    if description:
+        lines.extend(["", description])
+    lines.extend([
+        "",
+        "Model runs created with this descriptor are linked below.",
+    ])
+    lines.extend([
+        "",
+        f"### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})",
+    ])
+    return "\n".join(lines)
+
+
 def _ckan_delete_run(run_id: str) -> None:
     """Delete a CKAN dataset by run_id (no-op if it does not exist)."""
     _ckan_api("package_delete", {"id": run_id.lower()})
@@ -288,7 +315,7 @@ def create_model(
             pkg = body["result"]
             patch = {}
             if description and "Auto-created placeholder" in (pkg.get("notes") or ""):
-                patch["notes"] = f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})"
+                patch["notes"] = _model_notes(name, description, model_qid)
             if git_repo and not pkg.get("url"):
                 patch["url"] = git_repo
             if patch:
@@ -301,7 +328,7 @@ def create_model(
     pkg = _ckan_api("package_create", {
         "name":      slug,
         "title":     name,
-        "notes":     f"{description}\n\n### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})",
+        "notes":     _model_notes(name, description, model_qid),
         "owner_org": "episerve",
         "url":       git_repo,
         "groups":    [{"name": "type-model"}],

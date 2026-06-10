@@ -322,7 +322,17 @@ def list_raw_datasets(lakefs_processed_repo: str) -> list:
 
 
 def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
-    """Read .fdo.json and return a flat metadata dict including component file list."""
+    """Read raw dataset FDO metadata.
+
+    Args:
+        fdo_path: Path to the raw dataset ``.fdo.json`` object in lakeFS.
+        lakefs_processed_repo: lakeFS repository containing processed dataset
+            FDO sidecars.
+
+    Returns:
+        dict: Flat metadata used to create or update the CKAN package,
+        including component file entries.
+    """
     client = _lakefs_client()
     repo   = lakefs.Repository(lakefs_processed_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
@@ -350,7 +360,7 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
 
     return {
         "qid":             qid,
-        "name":            profile.get("name",            ""),
+        "name":            profile.get("display_name", "") or profile.get("name", ""),
         "description":     profile.get("description",    ""),
         "source_url":      profile.get("url",            ""),
         "additional_type": profile.get("additionalType", ""),

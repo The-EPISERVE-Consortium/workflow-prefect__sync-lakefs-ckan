@@ -107,6 +107,16 @@ class TestGetRawDatasetMetadata:
             {"filename": "RKI__covid_germany.csv", "url": _FDO_DATA_URL, "media_type": "text/csv"}
         ]
 
+    def test_uses_display_name_when_available(self):
+        fdo = {**_FDO, "profile": {**_FDO["profile"], "display_name": "COVID-19 Germany Incidence"}}
+        obj = _mock_object(fdo)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
+
+        assert result["name"] == "COVID-19 Germany Incidence"
+
     def test_reads_correct_object_path(self):
         obj = _mock_object(_FDO)
         with patch("tools.lakefs_tools._lakefs_client"), \

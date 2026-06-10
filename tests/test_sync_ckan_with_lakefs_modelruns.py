@@ -381,7 +381,7 @@ class TestSyncRun:
         mock_ensure.assert_called_once_with(
             model_name="ct-seg", docker_image="ghcr.io/example/ct-seg",
             docker_tag="2.1.0", model_qid=fake_model_qid, fdo_bytes=fake_fdo_bytes,
-            description="", git_repo="", force_recreate=False,
+            description="", git_repo="", additional_properties=[], force_recreate=False,
         )
         mock_create.assert_called_once_with(
             model_name       = "ct-seg",
@@ -396,6 +396,8 @@ class TestSyncRun:
             input_files      = input_files,
             output_files     = output_files,
             model_qid        = fake_model_qid,
+            input_dataset_qids = [],
+            data_transformation_sql = [],
         )
 
 

@@ -283,6 +283,7 @@ class TestDoSyncRawDataset:
             modified    = "2026-06-02T19:25:59Z",
             components  = _METADATA["components"],
             fdo_bytes   = b'{"@id": "Q1"}',
+            additional_type = "",
         )
 
     def test_force_recreate_deletes_then_creates(self):
@@ -323,6 +324,7 @@ class TestDoSyncRawDataset:
             description = "desc",
             source_url  = "https://example.com",
             modified    = "2026-06-02T19:25:59Z",
+            additional_type = "",
         )
         mock_create.assert_not_called()
 
@@ -459,4 +461,4 @@ class TestUpdateRawDataset:
 
         payload = mock_post.call_args[1]["json"]
         keys = {e["key"] for e in payload["extras"]}
-        assert keys == {"dataset_type", "qid", "modified"}
+        assert keys == {"dataset_type", "qid", "modified", "additional_type"}

@@ -7,6 +7,7 @@ import pytest
 
 import flow.sync_ckan_with_lakefs_dataprocessed as m
 from tools.ckan_tools import (
+    _ckan_add_preview_view,
     _ckan_fetch_raw_dataset,
     _ckan_raw_dataset_exists,
     create_raw_dataset,
@@ -189,6 +190,21 @@ class TestCkanRawDatasetExists:
 
 
 # ── create_raw_dataset ─────────────────────────────────────────────────────────
+
+class TestCkanAddPreviewView:
+    def test_log_resource_gets_text_view(self):
+        with patch("tools.ckan_tools._ckan_api") as mock_api:
+            _ckan_add_preview_view({"id": "resource-1", "format": "LOG"})
+
+        mock_api.assert_called_once_with(
+            "resource_view_create",
+            {
+                "resource_id": "resource-1",
+                "view_type":   "text_view",
+                "title":       "Preview",
+            },
+        )
+
 
 class TestCreateRawDataset:
     def test_calls_package_create_then_fdo_upload_then_resource_per_component(self):

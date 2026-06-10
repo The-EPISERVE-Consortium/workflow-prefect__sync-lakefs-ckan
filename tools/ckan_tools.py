@@ -37,7 +37,7 @@ def _ckan_add_preview_view(resource: dict) -> None:
             "view_type":   "parquet_view",
             "title":       "Preview",
         })
-    elif fmt == "JSON":
+    elif fmt in {"JSON", "LOG"}:
         _ckan_api("resource_view_create", {
             "resource_id": resource["id"],
             "view_type":   "text_view",

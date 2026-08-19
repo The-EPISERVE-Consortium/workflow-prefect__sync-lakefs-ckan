@@ -11,6 +11,7 @@ from tools.ckan_tools import (
     _ckan_fetch_raw_dataset,
     _ckan_raw_dataset_exists,
     create_raw_dataset,
+    touch_raw_dataset_modified_if_changed,
     update_raw_dataset,
 )
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
@@ -287,12 +288,24 @@ _METADATA = {
 
 
 class TestDoSyncRawDataset:
-    def test_skips_when_already_in_ckan(self):
+    def test_touches_modified_when_already_in_ckan(self):
         with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
              patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
+             patch.object(m, "touch_raw_dataset_modified_if_changed", return_value=True) as mock_touch, \
              patch.object(m, "create_raw_dataset") as mock_create:
             m._do_sync_raw_dataset(_FDO_PATH, "data-raw")
 
+        mock_touch.assert_called_once_with(_QID, "2026-06-02T19:25:59Z", "")
+        mock_create.assert_not_called()
+
+    def test_touch_no_change_does_not_call_create(self):
+        with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
+             patch.object(m, "get_raw_dataset_metadata", return_value=_METADATA), \
+             patch.object(m, "touch_raw_dataset_modified_if_changed", return_value=False) as mock_touch, \
+             patch.object(m, "create_raw_dataset") as mock_create:
+            m._do_sync_raw_dataset(_FDO_PATH, "data-raw")
+
+        mock_touch.assert_called_once()
         mock_create.assert_not_called()
 
     def test_creates_when_not_in_ckan(self):
@@ -488,3 +501,52 @@ class TestUpdateRawDataset:
         payload = mock_post.call_args[1]["json"]
         keys = {e["key"] for e in payload["extras"]}
         assert keys == {"dataset_type", "qid", "modified", "additional_type"}
+
+
+# ── touch_raw_dataset_modified_if_changed ──────────────────────────────────────
+
+class TestTouchRawDatasetModifiedIfChanged:
+    def _get_resp(self, pkg=_CKAN_PKG):
+        mock = MagicMock()
+        mock.json.return_value = {"result": {"count": 1, "results": [pkg]}}
+        return mock
+
+    def test_patches_and_returns_true_when_modified_differs(self):
+        with patch("requests.get", return_value=self._get_resp()), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = touch_raw_dataset_modified_if_changed(_QID, "2026-06-02T19:25:59Z")
+
+        assert result is True
+        payload = mock_post.call_args[1]["json"]
+        assert payload["id"] == "pkg-uuid-123"
+        extras_by_key = {e["key"]: e["value"] for e in payload["extras"]}
+        assert extras_by_key == {
+            "dataset_type": "raw-data",
+            "qid": _QID,
+            "modified": "2026-06-02T19:25:59Z",
+            "additional_type": "",
+        }
+
+    def test_no_patch_and_returns_false_when_unchanged(self):
+        up_to_date_pkg = {
+            **_CKAN_PKG,
+            "extras": [
+                {"key": "dataset_type", "value": "raw-data"},
+                {"key": "qid",          "value": _QID},
+                {"key": "modified",     "value": "2026-06-02T19:25:59Z"},
+            ],
+        }
+        with patch("requests.get", return_value=self._get_resp(up_to_date_pkg)), \
+             patch("requests.post") as mock_post:
+            result = touch_raw_dataset_modified_if_changed(_QID, "2026-06-02T19:25:59Z")
+
+        assert result is False
+        mock_post.assert_not_called()
+
+    def test_raises_when_dataset_not_found(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"result": {"count": 0, "results": []}}
+        with patch("requests.get", return_value=mock_resp):
+            with pytest.raises(RuntimeError, match="non-existent dataset"):
+                touch_raw_dataset_modified_if_changed(_QID, "2026-06-02T19:25:59Z")

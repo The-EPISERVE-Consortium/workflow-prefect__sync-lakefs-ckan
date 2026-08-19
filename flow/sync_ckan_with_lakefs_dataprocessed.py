@@ -8,7 +8,13 @@ it to CKAN, and registers all data files as resources.
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from tools.ckan_tools import _ckan_delete_raw_dataset, _ckan_raw_dataset_exists, create_raw_dataset, update_raw_dataset
+from tools.ckan_tools import (
+    _ckan_delete_raw_dataset,
+    _ckan_raw_dataset_exists,
+    create_raw_dataset,
+    touch_raw_dataset_modified_if_changed,
+    update_raw_dataset,
+)
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 
 
@@ -45,7 +51,10 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
                 log(f"{qid}: already up to date.")
             return
         if not force_recreate:
-            log(f"{qid}: already in CKAN, skipping.")
+            touched = touch_raw_dataset_modified_if_changed(
+                qid, metadata["modified"], metadata.get("additional_type", "")
+            )
+            log(f"{qid}: {'modified timestamp updated.' if touched else 'already up to date, skipping.'}")
             return
         log(f"{qid}: already in CKAN, overwriting.")
         _ckan_delete_raw_dataset(qid)

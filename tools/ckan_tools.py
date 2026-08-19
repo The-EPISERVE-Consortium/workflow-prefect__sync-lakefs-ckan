@@ -278,6 +278,34 @@ def update_raw_dataset(
     return changed
 
 
+def touch_raw_dataset_modified_if_changed(qid: str, modified: str, additional_type: str = "") -> bool:
+    """
+    Patch only the CKAN extras (dataset_type/qid/modified/additional_type) on
+    an existing raw dataset, but only if the FDO's kernel.modified value
+    differs from what CKAN currently has. One read, at most one write.
+
+    Returns True if a patch was sent, False if already up to date.
+    """
+    pkg = _ckan_fetch_raw_dataset(qid)
+    if pkg is None:
+        raise RuntimeError(f"touch_raw_dataset_modified_if_changed called on non-existent dataset {qid}")
+
+    current_modified = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("modified", "")
+    if current_modified == modified:
+        return False
+
+    _ckan_api("package_patch", {
+        "id": pkg["id"],
+        "extras": [
+            {"key": "dataset_type",    "value": "raw-data"},
+            {"key": "qid",             "value": qid},
+            {"key": "modified",        "value": modified},
+            {"key": "additional_type", "value": additional_type},
+        ],
+    })
+    return True
+
+
 # ── Dataset creation ───────────────────────────────────────────────────────────
 
 def create_model(

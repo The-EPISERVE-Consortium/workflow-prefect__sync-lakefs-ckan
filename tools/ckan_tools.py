@@ -237,6 +237,7 @@ def update_raw_dataset(
     source_url: str,
     modified: str,
     additional_type: str = "",
+    content_changed_at: str = "",
 ) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
@@ -249,7 +250,13 @@ def update_raw_dataset(
         raise RuntimeError(f"update_raw_dataset called on non-existent dataset {qid}")
 
     current_extras = {e["key"]: e["value"] for e in pkg.get("extras", [])}
-    desired_extras = {"dataset_type": "raw-data", "qid": qid, "modified": modified, "additional_type": additional_type}
+    desired_extras = {
+        "dataset_type":       "raw-data",
+        "qid":                qid,
+        "modified":           modified,
+        "additional_type":    additional_type,
+        "content_changed_at": content_changed_at,
+    }
 
     changed: dict = {}
     for field, desired in [("title", name), ("notes", description), ("url", source_url)]:
@@ -270,7 +277,7 @@ def update_raw_dataset(
         patch["notes"] = description
         patch["url"]   = source_url
     if any(k in changed for k in desired_extras):
-        # package_patch replaces the full extras list — always send all three managed keys.
+        # package_patch replaces the full extras list — always send all managed keys.
         # Any custom extras added via the CKAN UI will be lost when this branch runs.
         patch["extras"] = [{"key": k, "value": v} for k, v in desired_extras.items()]
 
@@ -278,11 +285,18 @@ def update_raw_dataset(
     return changed
 
 
-def touch_raw_dataset_modified_if_changed(qid: str, modified: str, additional_type: str = "") -> bool:
+def touch_raw_dataset_modified_if_changed(
+    qid: str,
+    modified: str,
+    additional_type: str = "",
+    content_changed_at: str = "",
+) -> bool:
     """
-    Patch only the CKAN extras (dataset_type/qid/modified/additional_type) on
-    an existing raw dataset, but only if the FDO's kernel.modified value
-    differs from what CKAN currently has. One read, at most one write.
+    Patch the CKAN extras (dataset_type/qid/modified/additional_type/content_changed_at)
+    on an existing raw dataset, but only if the FDO's kernel.content_changed_at
+    differs from what CKAN currently has — i.e. only when the underlying data
+    actually changed, not merely because the nightly pipeline ran again
+    (which always bumps `modified`). One read, at most one write.
 
     Returns True if a patch was sent, False if already up to date.
     """
@@ -290,17 +304,18 @@ def touch_raw_dataset_modified_if_changed(qid: str, modified: str, additional_ty
     if pkg is None:
         raise RuntimeError(f"touch_raw_dataset_modified_if_changed called on non-existent dataset {qid}")
 
-    current_modified = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("modified", "")
-    if current_modified == modified:
+    current_content_changed_at = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("content_changed_at", "")
+    if current_content_changed_at == content_changed_at:
         return False
 
     _ckan_api("package_patch", {
         "id": pkg["id"],
         "extras": [
-            {"key": "dataset_type",    "value": "raw-data"},
-            {"key": "qid",             "value": qid},
-            {"key": "modified",        "value": modified},
-            {"key": "additional_type", "value": additional_type},
+            {"key": "dataset_type",       "value": "raw-data"},
+            {"key": "qid",                "value": qid},
+            {"key": "modified",           "value": modified},
+            {"key": "additional_type",    "value": additional_type},
+            {"key": "content_changed_at", "value": content_changed_at},
         ],
     })
     return True
@@ -514,6 +529,7 @@ def create_raw_dataset(
     components: list,
     fdo_bytes: bytes,
     additional_type: str = "",
+    content_changed_at: str = "",
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -531,10 +547,11 @@ def create_raw_dataset(
         "url":       source_url,
         "groups":    [{"name": "type-raw-data"}],
         "extras": [
-            {"key": "dataset_type",    "value": "raw-data"},
-            {"key": "qid",             "value": qid},
-            {"key": "modified",        "value": modified},
-            {"key": "additional_type", "value": additional_type},
+            {"key": "dataset_type",       "value": "raw-data"},
+            {"key": "qid",                "value": qid},
+            {"key": "modified",           "value": modified},
+            {"key": "additional_type",    "value": additional_type},
+            {"key": "content_changed_at", "value": content_changed_at},
         ],
     })
 

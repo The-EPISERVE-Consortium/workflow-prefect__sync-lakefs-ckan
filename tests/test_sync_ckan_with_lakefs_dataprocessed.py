@@ -42,7 +42,6 @@ _FDO = {
         "kernelVersion": "v1",
         "immutable": False,
         "modified": "2026-06-02T19:25:59Z",
-        "content_changed_at": "2026-05-30T08:00:00Z",
         "fdo:hasComponent": [
             {
                 "@id": "#RKI__covid_germany.csv",
@@ -69,6 +68,7 @@ _FDO = {
             "@type": "prov:SoftwareAgent",
         },
         "prov:used": [],
+        "source_changed_at": "2026-05-30T08:00:00Z",
     },
 }
 
@@ -104,7 +104,7 @@ class TestGetRawDatasetMetadata:
         assert result["description"] == "Dataset corona_incidence_germany downloaded from https://example.com"
         assert result["source_url"]  == "https://example.com/data.csv"
         assert result["modified"]    == "2026-06-02T19:25:59Z"
-        assert result["content_changed_at"] == "2026-05-30T08:00:00Z"
+        assert result["source_changed_at"] == "2026-05-30T08:00:00Z"
         assert result["fdo_bytes"]   == json.dumps(_FDO).encode()
         assert result["components"]  == [
             {"filename": "RKI__covid_germany.csv", "url": _FDO_DATA_URL, "media_type": "text/csv"}
@@ -162,7 +162,7 @@ class TestGetRawDatasetMetadata:
         assert result["description"] == ""
         assert result["source_url"]  == ""
         assert result["modified"]    == ""
-        assert result["content_changed_at"] == ""
+        assert result["source_changed_at"] == ""
         assert result["components"]  == []
 
 
@@ -285,7 +285,7 @@ _METADATA = {
     "description":        "desc",
     "source_url":         "https://example.com",
     "modified":           "2026-06-02T19:25:59Z",
-    "content_changed_at": "2026-05-30T08:00:00Z",
+    "source_changed_at": "2026-05-30T08:00:00Z",
     "components":         [{"filename": "data.csv", "url": "http://lakefs/data.csv", "media_type": "text/csv"}],
     "fdo_bytes":          b'{"@id": "Q1"}',
 }
@@ -327,7 +327,7 @@ class TestDoSyncRawDataset:
             components  = _METADATA["components"],
             fdo_bytes   = b'{"@id": "Q1"}',
             additional_type = "",
-            content_changed_at = "2026-05-30T08:00:00Z",
+            source_changed_at = "2026-05-30T08:00:00Z",
         )
 
     def test_force_recreate_deletes_then_creates(self):
@@ -369,7 +369,7 @@ class TestDoSyncRawDataset:
             source_url  = "https://example.com",
             modified    = "2026-06-02T19:25:59Z",
             additional_type = "",
-            content_changed_at = "2026-05-30T08:00:00Z",
+            source_changed_at = "2026-05-30T08:00:00Z",
         )
         mock_create.assert_not_called()
 
@@ -506,7 +506,7 @@ class TestUpdateRawDataset:
 
         payload = mock_post.call_args[1]["json"]
         keys = {e["key"] for e in payload["extras"]}
-        assert keys == {"dataset_type", "qid", "modified", "additional_type", "content_changed_at"}
+        assert keys == {"dataset_type", "qid", "modified", "additional_type", "source_changed_at"}
 
 
 # ── touch_raw_dataset_modified_if_changed ──────────────────────────────────────
@@ -517,13 +517,13 @@ class TestTouchRawDatasetModifiedIfChanged:
         mock.json.return_value = {"result": {"count": 1, "results": [pkg]}}
         return mock
 
-    def test_patches_and_returns_true_when_content_changed_at_differs(self):
-        # _CKAN_PKG has no content_changed_at extra at all (defaults to "").
+    def test_patches_and_returns_true_when_source_changed_at_differs(self):
+        # _CKAN_PKG has no source_changed_at extra at all (defaults to "").
         with patch("requests.get", return_value=self._get_resp()), \
              patch("requests.post") as mock_post:
             mock_post.return_value = _post_response({})
             result = touch_raw_dataset_modified_if_changed(
-                _QID, "2026-06-02T19:25:59Z", content_changed_at="2026-05-30T08:00:00Z"
+                _QID, "2026-06-02T19:25:59Z", source_changed_at="2026-05-30T08:00:00Z"
             )
 
         assert result is True
@@ -535,10 +535,10 @@ class TestTouchRawDatasetModifiedIfChanged:
             "qid": _QID,
             "modified": "2026-06-02T19:25:59Z",
             "additional_type": "",
-            "content_changed_at": "2026-05-30T08:00:00Z",
+            "source_changed_at": "2026-05-30T08:00:00Z",
         }
 
-    def test_no_patch_when_content_changed_at_unchanged_even_if_modified_differs(self):
+    def test_no_patch_when_source_changed_at_unchanged_even_if_modified_differs(self):
         """The nightly 'modified' bump alone should not trigger a patch."""
         up_to_date_pkg = {
             **_CKAN_PKG,
@@ -546,33 +546,33 @@ class TestTouchRawDatasetModifiedIfChanged:
                 {"key": "dataset_type",       "value": "raw-data"},
                 {"key": "qid",                "value": _QID},
                 {"key": "modified",           "value": "2026-06-01T00:00:00Z"},
-                {"key": "content_changed_at", "value": "2026-05-30T08:00:00Z"},
+                {"key": "source_changed_at", "value": "2026-05-30T08:00:00Z"},
             ],
         }
         with patch("requests.get", return_value=self._get_resp(up_to_date_pkg)), \
              patch("requests.post") as mock_post:
             result = touch_raw_dataset_modified_if_changed(
-                _QID, "2026-06-02T19:25:59Z", content_changed_at="2026-05-30T08:00:00Z"
+                _QID, "2026-06-02T19:25:59Z", source_changed_at="2026-05-30T08:00:00Z"
             )
 
         assert result is False
         mock_post.assert_not_called()
 
-    def test_patches_when_content_changed_at_moves_forward(self):
+    def test_patches_when_source_changed_at_moves_forward(self):
         up_to_date_pkg = {
             **_CKAN_PKG,
             "extras": [
                 {"key": "dataset_type",       "value": "raw-data"},
                 {"key": "qid",                "value": _QID},
                 {"key": "modified",           "value": "2026-06-01T00:00:00Z"},
-                {"key": "content_changed_at", "value": "2026-05-30T08:00:00Z"},
+                {"key": "source_changed_at", "value": "2026-05-30T08:00:00Z"},
             ],
         }
         with patch("requests.get", return_value=self._get_resp(up_to_date_pkg)), \
              patch("requests.post") as mock_post:
             mock_post.return_value = _post_response({})
             result = touch_raw_dataset_modified_if_changed(
-                _QID, "2026-06-02T19:25:59Z", content_changed_at="2026-06-02T19:25:59Z"
+                _QID, "2026-06-02T19:25:59Z", source_changed_at="2026-06-02T19:25:59Z"
             )
 
         assert result is True

@@ -365,7 +365,7 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
         "source_url":          profile.get("url",            ""),
         "additional_type":     profile.get("additionalType", ""),
         "modified":            kernel.get("modified", "") or provenance.get("prov:generatedAtTime", ""),
-        "content_changed_at":  kernel.get("content_changed_at", ""),
+        "source_changed_at":   provenance.get("source_changed_at", ""),
         "components":          components,
         "fdo_bytes":           raw,
     }

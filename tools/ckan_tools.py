@@ -237,7 +237,7 @@ def update_raw_dataset(
     source_url: str,
     modified: str,
     additional_type: str = "",
-    content_changed_at: str = "",
+    source_changed_at: str = "",
 ) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
@@ -255,7 +255,7 @@ def update_raw_dataset(
         "qid":                qid,
         "modified":           modified,
         "additional_type":    additional_type,
-        "content_changed_at": content_changed_at,
+        "source_changed_at": source_changed_at,
     }
 
     changed: dict = {}
@@ -289,11 +289,11 @@ def touch_raw_dataset_modified_if_changed(
     qid: str,
     modified: str,
     additional_type: str = "",
-    content_changed_at: str = "",
+    source_changed_at: str = "",
 ) -> bool:
     """
-    Patch the CKAN extras (dataset_type/qid/modified/additional_type/content_changed_at)
-    on an existing raw dataset, but only if the FDO's kernel.content_changed_at
+    Patch the CKAN extras (dataset_type/qid/modified/additional_type/source_changed_at)
+    on an existing raw dataset, but only if the FDO's provenance.source_changed_at
     differs from what CKAN currently has — i.e. only when the underlying data
     actually changed, not merely because the nightly pipeline ran again
     (which always bumps `modified`). One read, at most one write.
@@ -304,8 +304,8 @@ def touch_raw_dataset_modified_if_changed(
     if pkg is None:
         raise RuntimeError(f"touch_raw_dataset_modified_if_changed called on non-existent dataset {qid}")
 
-    current_content_changed_at = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("content_changed_at", "")
-    if current_content_changed_at == content_changed_at:
+    current_source_changed_at = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("source_changed_at", "")
+    if current_source_changed_at == source_changed_at:
         return False
 
     _ckan_api("package_patch", {
@@ -315,7 +315,7 @@ def touch_raw_dataset_modified_if_changed(
             {"key": "qid",                "value": qid},
             {"key": "modified",           "value": modified},
             {"key": "additional_type",    "value": additional_type},
-            {"key": "content_changed_at", "value": content_changed_at},
+            {"key": "source_changed_at", "value": source_changed_at},
         ],
     })
     return True
@@ -529,7 +529,7 @@ def create_raw_dataset(
     components: list,
     fdo_bytes: bytes,
     additional_type: str = "",
-    content_changed_at: str = "",
+    source_changed_at: str = "",
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -551,7 +551,7 @@ def create_raw_dataset(
             {"key": "qid",                "value": qid},
             {"key": "modified",           "value": modified},
             {"key": "additional_type",    "value": additional_type},
-            {"key": "content_changed_at", "value": content_changed_at},
+            {"key": "source_changed_at", "value": source_changed_at},
         ],
     })
 

@@ -105,6 +105,8 @@ class TestGetRawDatasetMetadata:
         assert result["source_url"]  == "https://example.com/data.csv"
         assert result["modified"]    == "2026-06-02T19:25:59Z"
         assert result["source_changed_at"] == "2026-05-30T08:00:00Z"
+        assert result["license_id"]  == ""
+        assert result["attribution"] == ""
         assert result["fdo_bytes"]   == json.dumps(_FDO).encode()
         assert result["components"]  == [
             {"filename": "RKI__covid_germany.csv", "url": _FDO_DATA_URL, "media_type": "text/csv"}
@@ -163,7 +165,27 @@ class TestGetRawDatasetMetadata:
         assert result["source_url"]  == ""
         assert result["modified"]    == ""
         assert result["source_changed_at"] == ""
+        assert result["license_id"]  == ""
+        assert result["attribution"] == ""
         assert result["components"]  == []
+
+    def test_extracts_license_and_attribution_from_profile(self):
+        fdo = {
+            **_FDO,
+            "profile": {
+                **_FDO["profile"],
+                "license": "cc-by",
+                "creditText": "Weather data by Open-Meteo.com (CC BY 4.0).",
+            },
+        }
+        obj = _mock_object(fdo)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
+
+        assert result["license_id"]  == "cc-by"
+        assert result["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)."
 
 
 # ── list_raw_datasets ──────────────────────────────────────────────────────────
@@ -276,6 +298,34 @@ class TestCreateRawDataset:
         assert {"key": "qid",      "value": "Q42"}  in payload["extras"]
         assert {"key": "modified", "value": "2026-01-01T00:00:00Z"} in payload["extras"]
 
+    def test_package_create_omits_licence_fields_by_default(self):
+        pkg = {"id": "pkg-raw-4", "name": _QID.lower()}
+        with patch("requests.post") as mock_post:
+            mock_post.side_effect = [_post_response(pkg)]
+            create_raw_dataset(
+                qid="Q42", name="n", description="d", source_url="",
+                modified="", components=[], fdo_bytes=b"",
+            )
+
+        payload = mock_post.call_args[1]["json"]
+        assert "license_id" not in payload
+        assert all(e["key"] != "attribution" for e in payload["extras"])
+
+    def test_package_create_includes_licence_fields_when_provided(self):
+        pkg = {"id": "pkg-raw-5", "name": _QID.lower()}
+        with patch("requests.post") as mock_post:
+            mock_post.side_effect = [_post_response(pkg)]
+            create_raw_dataset(
+                qid="Q42", name="n", description="d", source_url="",
+                modified="", components=[], fdo_bytes=b"",
+                license_id="cc-by",
+                attribution="Weather data by Open-Meteo.com (CC BY 4.0).",
+            )
+
+        payload = mock_post.call_args[1]["json"]
+        assert payload["license_id"] == "cc-by"
+        assert {"key": "attribution", "value": "Weather data by Open-Meteo.com (CC BY 4.0)."} in payload["extras"]
+
 
 # ── _do_sync_raw_dataset ───────────────────────────────────────────────────────
 
@@ -286,6 +336,8 @@ _METADATA = {
     "source_url":         "https://example.com",
     "modified":           "2026-06-02T19:25:59Z",
     "source_changed_at": "2026-05-30T08:00:00Z",
+    "license_id":         "",
+    "attribution":        "",
     "components":         [{"filename": "data.csv", "url": "http://lakefs/data.csv", "media_type": "text/csv"}],
     "fdo_bytes":          b'{"@id": "Q1"}',
 }
@@ -328,6 +380,8 @@ class TestDoSyncRawDataset:
             fdo_bytes   = b'{"@id": "Q1"}',
             additional_type = "",
             source_changed_at = "2026-05-30T08:00:00Z",
+            license_id  = "",
+            attribution = "",
         )
 
     def test_force_recreate_deletes_then_creates(self):
@@ -370,6 +424,8 @@ class TestDoSyncRawDataset:
             modified    = "2026-06-02T19:25:59Z",
             additional_type = "",
             source_changed_at = "2026-05-30T08:00:00Z",
+            license_id  = "",
+            attribution = "",
         )
         mock_create.assert_not_called()
 
@@ -507,6 +563,35 @@ class TestUpdateRawDataset:
         payload = mock_post.call_args[1]["json"]
         keys = {e["key"] for e in payload["extras"]}
         assert keys == {"dataset_type", "qid", "modified", "additional_type", "source_changed_at"}
+
+    def test_sets_license_id_and_attribution_when_missing_in_ckan(self):
+        with patch("requests.get", return_value=self._get_resp()), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+                license_id="cc-by",
+                attribution="Weather data by Open-Meteo.com (CC BY 4.0).",
+            )
+
+        assert result["license_id"] == ("", "cc-by")
+        payload = mock_post.call_args[1]["json"]
+        assert payload["license_id"] == "cc-by"
+        extras_by_key = {e["key"]: e["value"] for e in payload["extras"]}
+        assert extras_by_key["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)."
+
+    def test_blank_license_id_never_clears_existing(self):
+        pkg = {**_CKAN_PKG, "license_id": "cc-by"}
+        with patch("requests.get", return_value=self._get_resp(pkg)), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        assert "license_id" not in result
 
 
 # ── touch_raw_dataset_modified_if_changed ──────────────────────────────────────

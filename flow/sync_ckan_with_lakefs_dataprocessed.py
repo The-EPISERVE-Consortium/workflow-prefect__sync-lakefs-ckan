@@ -44,6 +44,8 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
                 modified            = metadata["modified"],
                 additional_type     = metadata.get("additional_type", ""),
                 source_changed_at   = metadata.get("source_changed_at", ""),
+                license_id          = metadata.get("license_id", ""),
+                attribution         = metadata.get("attribution", ""),
             )
             if changed:
                 diff = ", ".join(f"{k} {old!r} → {new!r}" for k, (old, new) in changed.items())
@@ -74,6 +76,8 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
         fdo_bytes           = metadata["fdo_bytes"],
         additional_type     = metadata.get("additional_type", ""),
         source_changed_at   = metadata.get("source_changed_at", ""),
+        license_id          = metadata.get("license_id", ""),
+        attribution         = metadata.get("attribution", ""),
     )
     log(f"{qid}: done.")
 

@@ -238,12 +238,17 @@ def update_raw_dataset(
     modified: str,
     additional_type: str = "",
     source_changed_at: str = "",
+    license_id: str = "",
+    attribution: str = "",
 ) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
 
     Resources are not touched. Returns a dict mapping each changed field name to
     (old_value, new_value). Empty dict means nothing changed.
+
+    license_id / attribution are only ever set, never cleared: a blank value
+    from the FDO leaves whatever CKAN already has untouched.
     """
     pkg = _ckan_fetch_raw_dataset(qid)
     if pkg is None:
@@ -257,12 +262,16 @@ def update_raw_dataset(
         "additional_type":    additional_type,
         "source_changed_at": source_changed_at,
     }
+    if attribution:
+        desired_extras["attribution"] = attribution
 
     changed: dict = {}
     for field, desired in [("title", name), ("notes", description), ("url", source_url)]:
         current = pkg.get(field, "")
         if current != desired:
             changed[field] = (current, desired)
+    if license_id and pkg.get("license_id", "") != license_id:
+        changed["license_id"] = (pkg.get("license_id", ""), license_id)
     for key, desired in desired_extras.items():
         current = current_extras.get(key, "")
         if current != desired:
@@ -276,6 +285,8 @@ def update_raw_dataset(
         patch["title"] = name
         patch["notes"] = description
         patch["url"]   = source_url
+    if "license_id" in changed:
+        patch["license_id"] = license_id
     if any(k in changed for k in desired_extras):
         # package_patch replaces the full extras list — always send all managed keys.
         # Any custom extras added via the CKAN UI will be lost when this branch runs.
@@ -530,6 +541,8 @@ def create_raw_dataset(
     fdo_bytes: bytes,
     additional_type: str = "",
     source_changed_at: str = "",
+    license_id: str = "",
+    attribution: str = "",
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -537,23 +550,34 @@ def create_raw_dataset(
     fdo_bytes is uploaded as an actual file to CKAN.
     components is a list of dicts with keys filename, url, and media_type.
 
+    license_id (when set) populates CKAN's native license field; attribution
+    (when set) is stored as an extra so the credit line shows in the frontend.
+
     The dataset is placed in the type-raw-data group.
     """
-    pkg = _ckan_api("package_create", {
+    extras = [
+        {"key": "dataset_type",       "value": "raw-data"},
+        {"key": "qid",                "value": qid},
+        {"key": "modified",           "value": modified},
+        {"key": "additional_type",    "value": additional_type},
+        {"key": "source_changed_at", "value": source_changed_at},
+    ]
+    if attribution:
+        extras.append({"key": "attribution", "value": attribution})
+
+    package = {
         "name":      qid.lower(),
         "title":     name,
         "notes":     description,
         "owner_org": "episerve",
         "url":       source_url,
         "groups":    [{"name": "type-raw-data"}],
-        "extras": [
-            {"key": "dataset_type",       "value": "raw-data"},
-            {"key": "qid",                "value": qid},
-            {"key": "modified",           "value": modified},
-            {"key": "additional_type",    "value": additional_type},
-            {"key": "source_changed_at", "value": source_changed_at},
-        ],
-    })
+        "extras":    extras,
+    }
+    if license_id:
+        package["license_id"] = license_id
+
+    pkg = _ckan_api("package_create", package)
 
     if fdo_bytes:
         _ckan_upload_resource(pkg["id"], "fdo.json", fdo_bytes, "FDO metadata")

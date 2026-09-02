@@ -8,6 +8,7 @@ import pytest
 import flow.sync_ckan_with_lakefs_modelruns as m
 from tools.ckan_tools import (
     _ckan_run_exists,
+    _model_notes,
     create_model,
     create_model_run,
     ensure_model,
@@ -47,7 +48,11 @@ def _post_response(result):
 
 class TestCreateModel:
     def test_idempotent_returns_existing_without_package_create(self):
-        existing = {"id": "abc", "name": "q0000000000001", "title": "my-model", "notes": "A CT segmentation model.", "url": "https://github.com/example/ct-seg"}
+        existing = {
+            "id": "abc", "name": "q0000000000001", "title": "my-model",
+            "notes": _model_notes("my-model", "A CT segmentation model.", "Q0000000000001"),
+            "url": "https://github.com/example/ct-seg",
+        }
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
@@ -178,23 +183,35 @@ class TestCreateModel:
         assert payload["url"] == "https://github.com/example/model"
         assert result == patched
 
-    def test_no_patch_when_description_already_real(self):
-        existing = {"id": "abc", "name": "q0000000000001", "notes": "Already a real description.", "url": ""}
+    def test_resyncs_notes_when_fdo_description_changed(self):
+        # Existing package holds notes rendered from the OLD description; a new
+        # description in fdo.json must be pushed to CKAN on a normal sync.
+        existing = {
+            "id": "abc", "name": "q0000000000001",
+            "notes": _model_notes("my-model", "Old description.", "Q0000000000001"),
+            "url": "https://github.com/example/model",
+        }
+        patched = {**existing, "notes": _model_notes("my-model", "New description.", "Q0000000000001")}
 
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
 
         with patch("requests.get", return_value=get_mock), \
              patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response(patched)
             result = create_model(
                 name="my-model", description="New description.",
-                git_repo="", docker_image="", docker_tag="", algorithm="",
+                git_repo="https://github.com/example/model",
+                docker_image="", docker_tag="", algorithm="",
                 input_format="", output_format="", lead_researcher="",
                 model_qid="Q0000000000001",
             )
 
-        mock_post.assert_not_called()
-        assert result == existing
+        assert "package_patch" in mock_post.call_args[0][0]
+        assert mock_post.call_args[1]["json"]["notes"] == _model_notes(
+            "my-model", "New description.", "Q0000000000001"
+        )
+        assert result == patched
 
 
 # ── ensure_model ──────────────────────────────────────────────────────────────
@@ -222,7 +239,10 @@ class TestEnsureModel:
         assert extras["docker_image"] == "ghcr.io/example/ct-seg"
 
     def test_returns_existing_without_creating(self):
-        existing = {"id": "abc", "name": "ct-seg"}
+        existing = {
+            "id": "abc", "name": "ct-seg", "url": "",
+            "notes": _model_notes("ct-seg", "Auto-created placeholder for model 'ct-seg'.", "Q0000000000001"),
+        }
         get_mock = MagicMock()
         get_mock.json.return_value = {"success": True, "result": existing}
 

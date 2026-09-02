@@ -368,9 +368,15 @@ def create_model(
         if not force_recreate:
             pkg = body["result"]
             patch = {}
-            if description and "Auto-created placeholder" in (pkg.get("notes") or ""):
-                patch["notes"] = _model_notes(name, description, model_qid)
-            if git_repo and not pkg.get("url"):
+            # Keep the CKAN notes/url in step with the model's fdo.json on every
+            # sync, not just while the notes still hold the placeholder text --
+            # otherwise a description change in fdo.json never reaches CKAN
+            # without a (concurrency-unsafe) force_recreate.
+            if description:
+                desired_notes = _model_notes(name, description, model_qid)
+                if (pkg.get("notes") or "") != desired_notes:
+                    patch["notes"] = desired_notes
+            if git_repo and pkg.get("url") != git_repo:
                 patch["url"] = git_repo
             if patch:
                 patch["id"] = slug

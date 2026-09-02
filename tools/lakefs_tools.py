@@ -271,7 +271,11 @@ def ensure_model_fdo(
         log(f"  model '{model_name}' ({qid}): no fdo.json found — writing placeholder.")
 
     fdo_bytes = json.dumps(fdo, indent=2).encode()
-    branch.object(path).upload(data=fdo_bytes, content_type="application/json")
+    # pre_sign=False: upload via the lakeFS API, not a presigned PUT. The SDK
+    # omits Content-Type from the presigned SigV4 signature and Ceph RGW (Squid)
+    # rejects the mismatch with 403 AccessDenied. Same fix as
+    # workflow-prefect__dataset-downloader and workflow-prefect__model-runner.
+    branch.object(path).upload(data=fdo_bytes, content_type="application/json", pre_sign=False)
     branch.commit(message=f"add model fdo for {qid}")
     log(f"  model '{model_name}' ({qid}): written to lakeFS models repo.")
     return qid, fdo_bytes

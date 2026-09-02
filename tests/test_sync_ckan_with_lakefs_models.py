@@ -158,6 +158,9 @@ class TestEnsureModelFdo:
 
         # With force=True, should write even if object exists
         branch.object.return_value.upload.assert_called_once()
+        # Upload must skip the presigned PUT (Ceph RGW / Squid 403s the
+        # Content-Type signed-header mismatch).
+        assert branch.object.return_value.upload.call_args[1]["pre_sign"] is False
         branch.commit.assert_called_once()
 
 

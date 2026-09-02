@@ -9,7 +9,9 @@ Two Prefect flows that keep the CKAN data catalog in sync with lakeFS. One flow 
 **File:** `flow/sync_ckan_with_lakefs_modelruns.py`  
 **Deployment:** `sync-ckan-with-lakefs-modelruns`
 
-Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo.json`) and RO-Crate (`ro-crate-metadata.json`) for each run, and registers any new runs as CKAN datasets in the `type-model-run` group. Existing entries are skipped unless `force_recreate=True`.
+Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo.json`) and RO-Crate (`ro-crate-metadata.json`) for each run, and registers any new runs as CKAN datasets in the `type-model-run` group. A normal run also re-syncs each model's CKAN descriptor (notes/url) from its `fdo.json` whenever a new run of that model is registered.
+
+Existing run entries are skipped unless `force_recreate=True`. **`force_recreate=True` is not concurrency-safe** — model handling is per-run and all run tasks run concurrently, so N runs of the same model race on the lakeFS `models` commit (`predicate failed`) and the CKAN model-descriptor delete/recreate (`URL already in use`, 500s). Use it only against a stopped scheduler, and only expect the run entries themselves to be rebuilt cleanly.
 
 ### `sync_ckan_with_lakefs_dataprocessed` — processed datasets
 

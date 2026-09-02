@@ -97,6 +97,20 @@ def sync_ckan_with_lakefs(lakefs_run_repo: str = "model-runs", force_recreate: b
     """
     Scan the lakeFS model-runs repository and register any new runs in CKAN.
     Intended to run on a schedule as a Prefect deployment.
+
+    force_recreate=True is NOT concurrency-safe. Model handling
+    (ensure_model_fdo, create_model) is per-run, and all run tasks are
+    submitted concurrently, so N runs of the same model race:
+      - lakeFS: parallel commits to models/main -> "predicate failed" /
+        "commit: no changes"
+      - CKAN: parallel package_delete + package_create of the same model
+        descriptor -> "URL already in use" / 500s
+    A normal (force_recreate=False) sync already re-syncs a model's CKAN
+    notes/url from its fdo.json whenever any new run of that model is
+    registered, so force_recreate is rarely needed. Only use it against a
+    stopped scheduler, and expect model-descriptor errors if more than one
+    run shares a model. See the git history for a proposed fix (dedupe model
+    handling to once per model).
     """
     logger  = get_run_logger()
     run_ids = list_runs(lakefs_run_repo)

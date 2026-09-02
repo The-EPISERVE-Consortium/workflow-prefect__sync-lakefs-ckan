@@ -61,6 +61,8 @@ data-processed/main/
 | `LAKEFS_ACCESS_KEY` | yes | lakeFS access key ID |
 | `LAKEFS_SECRET_KEY` | yes | lakeFS secret access key |
 | `LAKEFS_HOST` | no | lakeFS endpoint (default: `https://lake-episerve.zib.de`) |
+| `DOIP_HOST` | yes | DOIP server base (protocol access) |
+| `DOIP_PUBLIC_URL` | no | Public DOIP base used for the retrieve links written into CKAN resources; defaults to `DOIP_HOST`. Set this when `DOIP_HOST` points at an in-cluster Service DNS so catalog links stay externally resolvable. |
 | `PREFECT_API_URL` | deploy | Prefect server URL (needed by `deploy.py` and CI) |
 | `PREFECT_API_KEY` | deploy | Prefect API key (needed by `deploy.py` and CI) |
 

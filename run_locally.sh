@@ -9,6 +9,7 @@ export LAKEFS_SECRET_KEY=$(kubectl get secret lakefs-credentials -o jsonpath='{.
 export CKAN_HOST=https://data.episerve.zib.de
 export LAKEFS_HOST=https://lake-episerve.zib.de/
 export DOIP_HOST=https://doip.episerve.zib.de
+export DOIP_PUBLIC_URL=https://doip.episerve.zib.de
 export LAKEFS_MODELS_REPO=models
 
 # Run

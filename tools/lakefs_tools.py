@@ -29,10 +29,20 @@ def _lakefs_object_url(repo: str, path: str) -> str:
     return f"{base}/api/v1/repositories/{repo}/refs/{LAKEFS_BRANCH}/objects?path={quote(path, safe='')}&presign=false"
 
 
+def _doip_public_base() -> str:
+    """Base URL for the DOIP retrieve links written into the CKAN catalog.
+
+    Kept separate from ``DOIP_HOST`` -- which may be an in-cluster Service DNS
+    used for protocol access -- so a mutable internal host can never end up in a
+    public catalog. Falls back to ``DOIP_HOST`` when ``DOIP_PUBLIC_URL`` is unset.
+    """
+    return os.environ.get("DOIP_PUBLIC_URL", os.environ["DOIP_HOST"]).rstrip("/")
+
+
 def _doip_url(run_id: str, component_id: str) -> str:
     """Build a DOIP retrieve URL for a components/-relative path."""
     element = component_id[len("components/"):]
-    return f"{os.environ['DOIP_HOST']}/doip/retrieve/{run_id}/{element}"
+    return f"{_doip_public_base()}/doip/retrieve/{run_id}/{element}"
 
 
 def list_runs(lakefs_run_repo: str) -> list:
@@ -345,7 +355,7 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
     kernel     = fdo.get("kernel",        {})
     profile    = fdo.get("profile",       {})
     provenance = fdo.get("provenance",    {})
-    doip_base  = os.environ["DOIP_HOST"]
+    doip_base  = _doip_public_base()
 
     components = []
     for comp in kernel.get("fdo:hasComponent", []):

@@ -14,7 +14,7 @@ from tools.ckan_tools import (
     touch_raw_dataset_modified_if_changed,
     update_raw_dataset,
 )
-from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
+from tools.lakefs_tools import _doip_public_base, get_raw_dataset_metadata, list_raw_datasets
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -140,6 +140,30 @@ class TestGetRawDatasetMetadata:
             result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
 
         assert result["components"][0]["url"] == _FDO_DATA_URL
+
+    def test_component_url_prefers_doip_public_url(self, monkeypatch):
+        monkeypatch.setenv("DOIP_HOST", "http://doip-server.default.svc.cluster.local")
+        monkeypatch.setenv("DOIP_PUBLIC_URL", "https://doip.episerve.zib.de/")
+        obj = _mock_object(_FDO)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = obj
+            result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
+
+        assert result["components"][0]["url"] == (
+            "https://doip.episerve.zib.de/doip/retrieve/Q1780428359320/RKI__covid_germany.csv"
+        )
+
+
+def test_doip_public_base_falls_back_to_doip_host(monkeypatch):
+    monkeypatch.delenv("DOIP_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("DOIP_HOST", "http://only-doip-host")
+    assert _doip_public_base() == "http://only-doip-host"
+
+
+def test_doip_public_base_strips_trailing_slash(monkeypatch):
+    monkeypatch.setenv("DOIP_PUBLIC_URL", "https://doip.episerve.zib.de/")
+    assert _doip_public_base() == "https://doip.episerve.zib.de"
 
     def test_empty_components_when_none_in_kernel(self):
         fdo = {**_FDO, "kernel": {**_FDO["kernel"], "fdo:hasComponent": []}}

@@ -14,6 +14,15 @@ def _ckan_url() -> str:
     return os.environ["CKAN_HOST"]
 
 
+def _ckan_public_url() -> str:
+    """Public CKAN base URL for the human-facing markdown links embedded in
+    dataset notes. API calls use ``_ckan_url()`` (may be in-cluster Service
+    DNS); this is the URL a browser must be able to reach. Falls back to
+    ``CKAN_HOST`` when ``CKAN_PUBLIC_URL`` is unset.
+    """
+    return os.environ.get("CKAN_PUBLIC_URL", os.environ["CKAN_HOST"]).rstrip("/")
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _ckan_headers() -> dict:
@@ -107,7 +116,7 @@ def _dataset_link(qid: str) -> str:
     Returns:
         str: Markdown link pointing at the CKAN dataset page.
     """
-    return f"[{qid}]({_ckan_url().rstrip('/')}/dataset/{qid.lower()})"
+    return f"[{qid}]({_ckan_public_url()}/dataset/{qid.lower()})"
 
 
 def _model_run_notes(
@@ -144,7 +153,7 @@ def _model_run_notes(
     dataset_qids = input_dataset_qids or []
     sql_statements = [sql for sql in (data_transformation_sql or []) if sql]
 
-    model_text = f"[{model_name}]({_ckan_url().rstrip('/')}/dataset/{model_qid.lower()})" if model_qid else model_name
+    model_text = f"[{model_name}]({_ckan_public_url()}/dataset/{model_qid.lower()})" if model_qid else model_name
 
     if dataset_qids:
         dataset_text = ", ".join(_dataset_link(dataset_qid) for dataset_qid in dataset_qids)
@@ -185,7 +194,7 @@ def _model_notes(name: str, description: str, model_qid: str) -> str:
     ])
     lines.extend([
         "",
-        f"### [Browse all runs →]({_ckan_url()}/dataset?q=extras_model_qid:{model_qid})",
+        f"### [Browse all runs →]({_ckan_public_url()}/dataset?q=extras_model_qid:{model_qid})",
     ])
     return "\n".join(lines)
 

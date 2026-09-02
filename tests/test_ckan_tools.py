@@ -65,3 +65,18 @@ def test_existing_model_url_backfilled_and_updated():
     patch_calls = [c for c in api.call_args_list if c.args[0] == "package_patch"]
     assert len(patch_calls) == 1
     assert patch_calls[0].args[1]["url"] == "https://github.com/x/m"
+
+
+def test_notes_links_use_ckan_public_url(monkeypatch):
+    monkeypatch.setenv("CKAN_HOST", "http://ckan.ckan.svc.cluster.local")
+    monkeypatch.setenv("CKAN_PUBLIC_URL", "https://data.episerve.zib.de")
+    notes = ckan_tools._model_notes("m", "d", "Q9")
+    assert "https://data.episerve.zib.de/dataset?q=extras_model_qid:Q9" in notes
+    assert "svc.cluster.local" not in notes
+    assert ckan_tools._dataset_link("Q9").endswith("(https://data.episerve.zib.de/dataset/q9)")
+
+
+def test_notes_links_fall_back_to_ckan_host(monkeypatch):
+    monkeypatch.delenv("CKAN_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("CKAN_HOST", "https://ckan.test")
+    assert "https://ckan.test/dataset?q=" in ckan_tools._model_notes("m", "d", "Q9")

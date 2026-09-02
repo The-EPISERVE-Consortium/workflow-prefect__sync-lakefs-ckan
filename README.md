@@ -59,7 +59,8 @@ data-processed/main/
 | Variable | Required | Description |
 |---|---|---|
 | `CKAN_API_TOKEN` | yes | CKAN API token with write access |
-| `CKAN_URL` | no | CKAN endpoint (default: `https://data.episerve.zib.de`) |
+| `CKAN_HOST` | yes | CKAN endpoint used for API calls (may be an in-cluster Service DNS) |
+| `CKAN_PUBLIC_URL` | no | Public CKAN base for the "Browse all runs" / dataset links written into CKAN notes; defaults to `CKAN_HOST`. Set this when `CKAN_HOST` is in-cluster so catalog links stay externally resolvable (mirrors `DOIP_PUBLIC_URL`). |
 | `LAKEFS_ACCESS_KEY` | yes | lakeFS access key ID |
 | `LAKEFS_SECRET_KEY` | yes | lakeFS secret access key |
 | `LAKEFS_HOST` | no | lakeFS endpoint (default: `https://lake-episerve.zib.de`) |

@@ -239,6 +239,20 @@ def _ckan_fetch_raw_dataset(qid: str) -> dict | None:
     return result["results"][0]
 
 
+# Extras that are only ever set, never cleared, by the sync. package_patch replaces
+# the whole extras list, so any patch must carry the current values of these over.
+_STICKY_EXTRAS = ("attribution", "access")
+
+
+def _with_sticky_extras(extras: dict, current_extras: dict) -> list:
+    """Return the extras list to send, keeping current sticky values that are not being set."""
+    merged = dict(extras)
+    for key in _STICKY_EXTRAS:
+        if key not in merged and current_extras.get(key):
+            merged[key] = current_extras[key]
+    return [{"key": k, "value": v} for k, v in merged.items()]
+
+
 def update_raw_dataset(
     qid: str,
     name: str,
@@ -249,6 +263,7 @@ def update_raw_dataset(
     source_changed_at: str = "",
     license_id: str = "",
     attribution: str = "",
+    access: str = "",
 ) -> dict:
     """
     Patch a CKAN raw dataset with only the fields that differ from the current state.
@@ -256,8 +271,9 @@ def update_raw_dataset(
     Resources are not touched. Returns a dict mapping each changed field name to
     (old_value, new_value). Empty dict means nothing changed.
 
-    license_id / attribution are only ever set, never cleared: a blank value
-    from the FDO leaves whatever CKAN already has untouched.
+    license_id / attribution / access are only ever set, never cleared: a blank
+    value from the FDO leaves whatever CKAN already has untouched. To lift a
+    restriction, set an explicit value (e.g. ``public``) in the FDO.
     """
     pkg = _ckan_fetch_raw_dataset(qid)
     if pkg is None:
@@ -273,6 +289,8 @@ def update_raw_dataset(
     }
     if attribution:
         desired_extras["attribution"] = attribution
+    if access:
+        desired_extras["access"] = access
 
     changed: dict = {}
     for field, desired in [("title", name), ("notes", description), ("url", source_url)]:
@@ -299,7 +317,7 @@ def update_raw_dataset(
     if any(k in changed for k in desired_extras):
         # package_patch replaces the full extras list — always send all managed keys.
         # Any custom extras added via the CKAN UI will be lost when this branch runs.
-        patch["extras"] = [{"key": k, "value": v} for k, v in desired_extras.items()]
+        patch["extras"] = _with_sticky_extras(desired_extras, current_extras)
 
     _ckan_api("package_patch", patch)
     return changed
@@ -310,11 +328,13 @@ def touch_raw_dataset_modified_if_changed(
     modified: str,
     additional_type: str = "",
     source_changed_at: str = "",
+    access: str = "",
 ) -> bool:
     """
     Patch the CKAN extras (dataset_type/qid/modified/additional_type/source_changed_at)
     on an existing raw dataset, but only if the FDO's provenance.source_changed_at
-    differs from what CKAN currently has — i.e. only when the underlying data
+    differs from what CKAN currently has, or a non-empty FDO ``accessRights`` differs
+    from CKAN's ``access`` extra — i.e. only when the underlying data
     actually changed, not merely because the nightly pipeline ran again
     (which always bumps `modified`). One read, at most one write.
 
@@ -324,19 +344,23 @@ def touch_raw_dataset_modified_if_changed(
     if pkg is None:
         raise RuntimeError(f"touch_raw_dataset_modified_if_changed called on non-existent dataset {qid}")
 
-    current_source_changed_at = {e["key"]: e["value"] for e in pkg.get("extras", [])}.get("source_changed_at", "")
-    if current_source_changed_at == source_changed_at:
+    current_extras = {e["key"]: e["value"] for e in pkg.get("extras", [])}
+    access_changed = bool(access) and current_extras.get("access", "") != access
+    if current_extras.get("source_changed_at", "") == source_changed_at and not access_changed:
         return False
 
+    desired_extras = {
+        "dataset_type":       "raw-data",
+        "qid":                qid,
+        "modified":           modified,
+        "additional_type":    additional_type,
+        "source_changed_at": source_changed_at,
+    }
+    if access:
+        desired_extras["access"] = access
     _ckan_api("package_patch", {
         "id": pkg["id"],
-        "extras": [
-            {"key": "dataset_type",       "value": "raw-data"},
-            {"key": "qid",                "value": qid},
-            {"key": "modified",           "value": modified},
-            {"key": "additional_type",    "value": additional_type},
-            {"key": "source_changed_at", "value": source_changed_at},
-        ],
+        "extras": _with_sticky_extras(desired_extras, current_extras),
     })
     return True
 
@@ -558,6 +582,7 @@ def create_raw_dataset(
     source_changed_at: str = "",
     license_id: str = "",
     attribution: str = "",
+    access: str = "",
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -567,6 +592,8 @@ def create_raw_dataset(
 
     license_id (when set) populates CKAN's native license field; attribution
     (when set) is stored as an extra so the credit line shows in the frontend.
+    access (when set, e.g. ``restricted``) is stored as the ``access`` extra,
+    which the EPISERVE theme uses to hide the files from anonymous users.
 
     The dataset is placed in the type-raw-data group.
     """
@@ -579,6 +606,8 @@ def create_raw_dataset(
     ]
     if attribution:
         extras.append({"key": "attribution", "value": attribution})
+    if access:
+        extras.append({"key": "access", "value": access})
 
     package = {
         "name":      qid.lower(),

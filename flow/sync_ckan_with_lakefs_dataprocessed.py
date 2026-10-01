@@ -46,6 +46,7 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
                 source_changed_at   = metadata.get("source_changed_at", ""),
                 license_id          = metadata.get("license_id", ""),
                 attribution         = metadata.get("attribution", ""),
+                access              = metadata.get("access", ""),
             )
             if changed:
                 diff = ", ".join(f"{k} {old!r} → {new!r}" for k, (old, new) in changed.items())
@@ -59,6 +60,7 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
                 metadata["modified"],
                 metadata.get("additional_type", ""),
                 metadata.get("source_changed_at", ""),
+                metadata.get("access", ""),
             )
             log(f"{qid}: {'modified timestamp updated.' if touched else 'already up to date, skipping.'}")
             return
@@ -78,6 +80,7 @@ def _do_sync_raw_dataset(fdo_path: str, lakefs_processed_repo: str, log=print, f
         source_changed_at   = metadata.get("source_changed_at", ""),
         license_id          = metadata.get("license_id", ""),
         attribution         = metadata.get("attribution", ""),
+        access              = metadata.get("access", ""),
     )
     log(f"{qid}: done.")
 

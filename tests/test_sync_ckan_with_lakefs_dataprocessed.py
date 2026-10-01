@@ -107,6 +107,7 @@ class TestGetRawDatasetMetadata:
         assert result["source_changed_at"] == "2026-05-30T08:00:00Z"
         assert result["license_id"]  == ""
         assert result["attribution"] == ""
+        assert result["access"]      == ""
         assert result["fdo_bytes"]   == json.dumps(_FDO).encode()
         assert result["components"]  == [
             {"filename": "RKI__covid_germany.csv", "url": _FDO_DATA_URL, "media_type": "text/csv"}
@@ -192,6 +193,15 @@ def test_doip_public_base_strips_trailing_slash(monkeypatch):
         assert result["license_id"]  == ""
         assert result["attribution"] == ""
         assert result["components"]  == []
+
+    def test_extracts_access_rights_from_profile(self):
+        fdo = {**_FDO, "profile": {**_FDO["profile"], "accessRights": "restricted"}}
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            mock_repo.return_value.branch.return_value.object.return_value = _mock_object(fdo)
+            result = get_raw_dataset_metadata(_FDO_PATH, "data-raw")
+
+        assert result["access"] == "restricted"
 
     def test_extracts_license_and_attribution_from_profile(self):
         fdo = {
@@ -362,6 +372,7 @@ _METADATA = {
     "source_changed_at": "2026-05-30T08:00:00Z",
     "license_id":         "",
     "attribution":        "",
+    "access":             "",
     "components":         [{"filename": "data.csv", "url": "http://lakefs/data.csv", "media_type": "text/csv"}],
     "fdo_bytes":          b'{"@id": "Q1"}',
 }
@@ -375,7 +386,7 @@ class TestDoSyncRawDataset:
              patch.object(m, "create_raw_dataset") as mock_create:
             m._do_sync_raw_dataset(_FDO_PATH, "data-raw")
 
-        mock_touch.assert_called_once_with(_QID, "2026-06-02T19:25:59Z", "", "2026-05-30T08:00:00Z")
+        mock_touch.assert_called_once_with(_QID, "2026-06-02T19:25:59Z", "", "2026-05-30T08:00:00Z", "")
         mock_create.assert_not_called()
 
     def test_touch_no_change_does_not_call_create(self):
@@ -406,7 +417,17 @@ class TestDoSyncRawDataset:
             source_changed_at = "2026-05-30T08:00:00Z",
             license_id  = "",
             attribution = "",
+            access      = "",
         )
+
+    def test_access_is_passed_through_on_create(self):
+        metadata = {**_METADATA, "access": "restricted"}
+        with patch.object(m, "_ckan_raw_dataset_exists", return_value=False), \
+             patch.object(m, "get_raw_dataset_metadata", return_value=metadata), \
+             patch.object(m, "create_raw_dataset") as mock_create:
+            m._do_sync_raw_dataset(_FDO_PATH, "data-raw")
+
+        assert mock_create.call_args.kwargs["access"] == "restricted"
 
     def test_force_recreate_deletes_then_creates(self):
         with patch.object(m, "_ckan_raw_dataset_exists", return_value=True), \
@@ -450,6 +471,7 @@ class TestDoSyncRawDataset:
             source_changed_at = "2026-05-30T08:00:00Z",
             license_id  = "",
             attribution = "",
+            access      = "",
         )
         mock_create.assert_not_called()
 
@@ -605,6 +627,36 @@ class TestUpdateRawDataset:
         extras_by_key = {e["key"]: e["value"] for e in payload["extras"]}
         assert extras_by_key["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)."
 
+    def test_sets_access_extra(self):
+        with patch("requests.get", return_value=self._get_resp()), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = update_raw_dataset(
+                qid=_QID, name="corona_incidence_germany", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+                access="restricted",
+            )
+
+        assert result["access"] == ("", "restricted")
+        extras_by_key = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
+        assert extras_by_key["access"] == "restricted"
+
+    def test_patch_keeps_existing_access_and_attribution_when_fdo_blank(self):
+        pkg = {**_CKAN_PKG, "extras": [*_CKAN_PKG["extras"],
+                                       {"key": "access", "value": "restricted"},
+                                       {"key": "attribution", "value": "Credit"}]}
+        with patch("requests.get", return_value=self._get_resp(pkg)), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            update_raw_dataset(
+                qid=_QID, name="renamed", description="desc",
+                source_url="https://example.com", modified="2026-06-02T19:25:59Z",
+            )
+
+        extras_by_key = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
+        assert extras_by_key["access"] == "restricted"
+        assert extras_by_key["attribution"] == "Credit"
+
     def test_blank_license_id_never_clears_existing(self):
         pkg = {**_CKAN_PKG, "license_id": "cc-by"}
         with patch("requests.get", return_value=self._get_resp(pkg)), \
@@ -646,6 +698,36 @@ class TestTouchRawDatasetModifiedIfChanged:
             "additional_type": "",
             "source_changed_at": "2026-05-30T08:00:00Z",
         }
+
+    def test_patch_keeps_existing_attribution_and_access(self):
+        pkg = {**_CKAN_PKG, "extras": [*_CKAN_PKG["extras"],
+                                       {"key": "access", "value": "restricted"},
+                                       {"key": "attribution", "value": "Credit"}]}
+        with patch("requests.get", return_value=self._get_resp(pkg)), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            touch_raw_dataset_modified_if_changed(
+                _QID, "2026-06-02T19:25:59Z", source_changed_at="2026-05-30T08:00:00Z"
+            )
+
+        extras_by_key = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
+        assert extras_by_key["access"] == "restricted"
+        assert extras_by_key["attribution"] == "Credit"
+
+    def test_patches_when_access_differs_even_if_source_unchanged(self):
+        pkg = {**_CKAN_PKG, "extras": [*_CKAN_PKG["extras"],
+                                       {"key": "source_changed_at", "value": "2026-05-30T08:00:00Z"}]}
+        with patch("requests.get", return_value=self._get_resp(pkg)), \
+             patch("requests.post") as mock_post:
+            mock_post.return_value = _post_response({})
+            result = touch_raw_dataset_modified_if_changed(
+                _QID, "2026-06-02T19:25:59Z", source_changed_at="2026-05-30T08:00:00Z",
+                access="restricted",
+            )
+
+        assert result is True
+        extras_by_key = {e["key"]: e["value"] for e in mock_post.call_args[1]["json"]["extras"]}
+        assert extras_by_key["access"] == "restricted"
 
     def test_no_patch_when_source_changed_at_unchanged_even_if_modified_differs(self):
         """The nightly 'modified' bump alone should not trigger a patch."""

@@ -311,6 +311,21 @@ class TestCreateModelRun:
         assert "CKAN contains" not in notes
         assert "```sql\nSELECT * FROM source\n```" in notes
 
+    def test_started_by_becomes_an_extra_only_when_there_is_one(self):
+        def extras(**kw):
+            with patch("requests.get", return_value=_vocab_get_response()), \
+                 patch("requests.post") as mock_post:
+                mock_post.side_effect = [_post_response({"id": "p"}), _post_response({}), _post_response({})]
+                create_model_run(
+                    model_name="ct-seg", run_id="run-x", qid="Q1748526042817", docker_tag="1.0",
+                    run_timestamp="2026-05-15T11:00:00Z", status="success", computation_time="",
+                    fdo_bytes=b"{}", rocrate_bytes=b"", input_files=[], output_files=[], **kw)
+            return {e["key"]: e["value"] for e in mock_post.call_args_list[0][1]["json"]["extras"]}
+
+        assert extras(started_by="episerve_user_18")["started_by"] == "episerve_user_18"
+        assert "started_by" not in extras()
+        assert "started_by" not in extras(started_by="")
+
     def test_calls_package_create_once_and_resource_create_per_file(self):
         pkg = {"id": "pkg-123", "name": "run-2026-001"}
         input_files  = [f"{_BASE}?path=run-2026-001%2Finput%2Fconfig.yaml&presign=false"]
@@ -464,6 +479,7 @@ class TestSyncRun:
             model_qid        = fake_model_qid,
             input_dataset_qids = [],
             data_transformation_sql = [],
+            started_by = "",
         )
 
 
@@ -598,6 +614,20 @@ class TestGetRunMetadata:
         assert result["output_files"]     == [_OUTPUT_URL]
         assert _json.loads(result["fdo_bytes"]) == _FDO
         assert result["rocrate_bytes"]    == _ROCRATE_BYTES
+
+    def test_started_by_is_taken_over_only_as_the_pseudonym(self):
+        def started_by(person):
+            fdo = {**_FDO, "provenance": {**_FDO["provenance"], **({"schema:agent": person} if person is not None else {})}}
+            obj = self._mock_object(fdo)
+            with patch("tools.lakefs_tools._lakefs_client"), \
+                 patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+                self._branch_mock_with_rocrate(mock_repo, obj)
+                return get_run_metadata(_QID, "model-runs")["started_by"]
+
+        assert started_by({"@id": "episerve_user_18", "@type": "prov:Person"}) == "episerve_user_18"
+        assert started_by(None) == ""                                                  # runs from before
+        for bad in ({"@id": "tim@example.org"}, {"@id": "Tim Conrad"}, {"schema:name": "Tim"}, "episerve_user_1", 5):
+            assert started_by(bad) == ""
 
     def test_reads_correct_object_paths(self):
         obj = self._mock_object(_FDO)

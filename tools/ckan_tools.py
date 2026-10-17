@@ -587,6 +587,9 @@ def create_raw_dataset(
     license_id: str = "",
     attribution: str = "",
     access: str = "",
+    group: str = "type-raw-data",
+    dataset_type: str = "raw-data",
+    extra_extras: list | None = None,
 ) -> dict:
     """
     Create a raw dataset in CKAN and attach all data files as resources.
@@ -599,10 +602,12 @@ def create_raw_dataset(
     access (when set, e.g. ``restricted``) is stored as the ``access`` extra,
     which the EPISERVE theme uses to hide the files from anonymous users.
 
-    The dataset is placed in the type-raw-data group.
+    The dataset is placed in the ``group`` (default type-raw-data); ``dataset_type`` and
+    ``extra_extras`` (a list of ``{"key", "value"}``) let other kinds of objects, e.g. the
+    generated files of benchmarks, reuse this function.
     """
     extras = [
-        {"key": "dataset_type",       "value": "raw-data"},
+        {"key": "dataset_type",       "value": dataset_type},
         {"key": "qid",                "value": qid},
         {"key": "modified",           "value": modified},
         {"key": "additional_type",    "value": additional_type},
@@ -612,6 +617,7 @@ def create_raw_dataset(
         extras.append({"key": "attribution", "value": attribution})
     if access:
         extras.append({"key": "access", "value": access})
+    extras.extend(extra_extras or [])
 
     package = {
         "name":      qid.lower(),
@@ -619,7 +625,7 @@ def create_raw_dataset(
         "notes":     description,
         "owner_org": "episerve",
         "url":       source_url,
-        "groups":    [{"name": "type-raw-data"}],
+        "groups":    [{"name": group}],
         "extras":    extras,
     }
     if license_id:

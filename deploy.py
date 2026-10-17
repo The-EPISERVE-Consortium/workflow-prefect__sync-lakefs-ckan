@@ -14,6 +14,7 @@ from prefect.runner.storage import GitRepository
 
 from flow.sync_ckan_with_lakefs_modelruns import sync_ckan_with_lakefs
 from flow.sync_ckan_with_lakefs_dataprocessed import sync_ckan_with_lakefs_dataprocessed
+from flow.sync_ckan_with_lakefs_benchmarks import sync_ckan_with_lakefs_benchmarks
 
 GITHUB_REPO_URL = "https://github.com/The-EPISERVE-Consortium/workflow-prefect__sync-lakefs-ckan"
 DOCKER_IMAGE    = "ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest"
@@ -50,4 +51,20 @@ if __name__ == "__main__":
         parameters={
             "lakefs_processed_repo": os.getenv("LAKEFS_PROCESSED_REPO", "data-processed"),
         },
+    )
+
+    sync_ckan_with_lakefs_benchmarks.from_source(
+        source=source,
+        entrypoint="flow/sync_ckan_with_lakefs_benchmarks.py:sync_ckan_with_lakefs_benchmarks",
+    ).deploy(
+        name=os.getenv("DEPLOYMENT_NAME_BENCHMARKS", "sync-ckan-with-lakefs-benchmarks"),
+        work_pool_name=WORK_POOL_NAME,
+        job_variables={
+            "image": DOCKER_IMAGE,
+            "image_pull_policy": "Always",
+        },
+        parameters={
+            "lakefs_benchmarks_repo": os.getenv("LAKEFS_BENCHMARKS_REPO", "benchmarks"),
+        },
+        cron=os.getenv("BENCHMARKS_SYNC_CRON", "*/15 * * * *"),
     )

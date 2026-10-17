@@ -13,6 +13,13 @@ Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo
 
 Existing run entries are skipped unless `force_recreate=True`. **`force_recreate=True` is not concurrency-safe** — model handling is per-run and all run tasks run concurrently, so N runs of the same model race on the lakeFS `models` commit (`predicate failed`) and the CKAN model-descriptor delete/recreate (`URL already in use`, 500s). Use it only against a stopped scheduler, and only expect the run entries themselves to be rebuilt cleanly.
 
+### `sync_ckan_with_lakefs_benchmarks` — generated benchmark files
+
+**File:** `flow/sync_ckan_with_lakefs_benchmarks.py`  
+**Deployment:** `sync-ckan-with-lakefs-benchmarks` (every 15 minutes)
+
+The API server stores the input and the reference file of every finalized benchmark as FDO objects (own QID, `.fdo.json` sidecar) in the lakeFS repository `benchmarks`. The flow creates a CKAN dataset for each new object in the group `type-benchmark-data` (so the files are not offered as source datasets), with the extras `benchmark_id`, `benchmark_role`, `source_qids`, `data_commit`, `sha256` and `access = open`. Objects never change, so existing ones are skipped. The group must exist in CKAN. Deploy only this flow with `python -c "import deploy"`-style code or by running `deploy.py` (which redeploys all three).
+
 ### `sync_ckan_with_lakefs_dataprocessed` — processed datasets
 
 **File:** `flow/sync_ckan_with_lakefs_dataprocessed.py`  
@@ -26,6 +33,7 @@ Scans `data-processed` in lakeFS for `.fdo.json` sidecar files, reads the FDO me
 flow/
   sync_ckan_with_lakefs_modelruns.py      # model runs → CKAN
   sync_ckan_with_lakefs_dataprocessed.py  # data-processed → CKAN
+  sync_ckan_with_lakefs_benchmarks.py     # benchmarks → CKAN (group type-benchmark-data)
 tools/
   ckan_tools.py      # CKAN API helpers
   lakefs_tools.py    # lakeFS listing and metadata reading

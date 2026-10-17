@@ -125,11 +125,11 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
     attribution = agent.get("@id", "") if isinstance(agent, dict) else str(agent)
     docker_tag  = attribution.rsplit(":", 1)[-1] if ":" in attribution else ""
 
-    # Who started the run: only the pseudonym ``episerve_user_<id>`` is taken over (nothing else is trusted).
+    # Who executed the run: only the pseudonym ``episerve_user_<id>`` is taken over (nothing else is trusted).
     person     = provenance.get("schema:agent", {})
-    started_by = person.get("@id", "") if isinstance(person, dict) else ""
-    if not re.fullmatch(r"episerve_user_\d{1,9}", started_by or ""):
-        started_by = ""
+    executed_by = person.get("@id", "") if isinstance(person, dict) else ""
+    if not re.fullmatch(r"episerve_user_\d{1,9}", executed_by or ""):
+        executed_by = ""
 
     model_name  = profile.get("name", "")
     model_image = profile.get("url",  "")
@@ -169,7 +169,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "model_image":         model_image,
         "qid":                 qid,
         "docker_tag":          docker_tag,
-        "started_by":          started_by,
+        "executed_by":          executed_by,
         "run_timestamp":       kernel.get("modified",                  ""),
         "status":              status,
         "computation_time":    "",

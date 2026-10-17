@@ -2,9 +2,9 @@
 Prefect flow that registers the generated files of benchmarks in CKAN.
 
 The API server stores the input and the reference file of every finalized
-benchmark as FDO objects in the lakeFS repository ``benchmarks`` (one QID and
-one ``.fdo.json`` each). This flow reads those sidecars and creates a CKAN
-dataset per object in the group ``type-benchmark-data``, so the files show up
+benchmark as ONE FDO object with two components in the lakeFS repository
+``benchmarks`` (one QID, one ``.fdo.json``). This flow reads those sidecars and
+creates a CKAN dataset per object, with a resource per file, in the group ``type-benchmark-data``, so the files show up
 in the catalog without being offered as source datasets of new benchmarks.
 The objects never change, so an object that already exists in CKAN is skipped.
 """
@@ -24,10 +24,8 @@ def benchmark_extras(profile: dict) -> list:
     info = profile.get("episerveBenchmark", {}) or {}
     extras = [
         {"key": "benchmark_id",     "value": str(info.get("id", ""))},
-        {"key": "benchmark_role",   "value": info.get("role", "")},
         {"key": "source_qids",      "value": ",".join(info.get("source_qids", []))},
         {"key": "data_commit",      "value": info.get("data_commit") or ""},
-        {"key": "sha256",           "value": info.get("sha256", "")},
     ]
     return [e for e in extras if e["value"]]
 

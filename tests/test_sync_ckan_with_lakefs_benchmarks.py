@@ -6,10 +6,12 @@ import pytest
 
 import flow.sync_ckan_with_lakefs_benchmarks as m
 
-_PROFILE = {"episerveBenchmark": {"id": 3, "role": "input", "source_qids": ["Q1", "Q2"],
-                                  "data_commit": "c" * 40, "sha256": "a" * 64}}
-_META = {"qid": "Q1791000000001", "name": "Flu (input data)", "description": "d", "source_url": "",
-         "modified": "2026-10-17T00:00:00Z", "components": [{"filename": "input.parquet", "url": "u", "media_type": "x"}],
+_PROFILE = {"episerveBenchmark": {"id": 3, "source_qids": ["Q1", "Q2"], "data_commit": "c" * 40,
+                                  "files": {"input": {"component": "input.parquet"},
+                                            "reference": {"component": "reference.parquet"}}}}
+_META = {"qid": "Q1791000000001", "name": "Benchmark 3: Flu", "description": "d", "source_url": "",
+         "modified": "2026-10-17T00:00:00Z", "components": [{"filename": "input.parquet", "url": "u", "media_type": "x"},
+                                         {"filename": "reference.parquet", "url": "v", "media_type": "x"}],
          "fdo_bytes": b"{}", "additional_type": "benchmarks", "access": "open", "profile": _PROFILE}
 
 
@@ -23,8 +25,7 @@ def required_env(monkeypatch):
 
 def test_extras_describe_the_benchmark_object():
     extras = {e["key"]: e["value"] for e in m.benchmark_extras(_PROFILE)}
-    assert extras == {"benchmark_id": "3", "benchmark_role": "input", "source_qids": "Q1,Q2",
-                      "data_commit": "c" * 40, "sha256": "a" * 64}
+    assert extras == {"benchmark_id": "3", "source_qids": "Q1,Q2", "data_commit": "c" * 40}
     assert m.benchmark_extras({}) == []
 
 

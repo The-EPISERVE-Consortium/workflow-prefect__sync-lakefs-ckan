@@ -490,6 +490,7 @@ def create_model_run(
     input_dataset_qids: list = [],
     data_transformation_sql: list = [],
     executed_by: str = "",
+    input_sources: list = [],
 ) -> dict:
     """
     Create a model run dataset in CKAN and attach all input and output files
@@ -535,6 +536,7 @@ def create_model_run(
             {"key": "status",               "value": status},
             {"key": "computation_time",     "value": computation_time},
             *([{"key": "executed_by", "value": executed_by}] if executed_by else []),
+            *([{"key": "input_sources", "value": json.dumps(input_sources)}] if input_sources else []),
             *([{"key": "input_dataset_qids", "value": json.dumps(input_dataset_qids)}]
               if input_dataset_qids else []),
             *([{"key": "data_transformation_sql", "value": json.dumps(data_transformation_sql)}]

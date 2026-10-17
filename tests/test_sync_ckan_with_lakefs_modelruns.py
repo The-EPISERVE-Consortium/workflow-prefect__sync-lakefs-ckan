@@ -480,6 +480,7 @@ class TestSyncRun:
             input_dataset_qids = [],
             data_transformation_sql = [],
             executed_by = "",
+            input_sources = [],
         )
 
 
@@ -628,6 +629,32 @@ class TestGetRunMetadata:
         assert executed_by(None) == ""                                                  # runs from before
         for bad in ({"@id": "tim@example.org"}, {"@id": "Tim Conrad"}, {"schema:name": "Tim"}, "episerve_user_1", 5):
             assert executed_by(bad) == ""
+
+    def test_input_sources_list_everything_the_run_read_with_its_version(self):
+        sources = ["https://doip.example/doip/retrieve/Q1/d.parquet?version=" + "ab" * 32,
+                   "lakefs://benchmarks/main/12/input.parquet?version=" + "ee" * 32]
+        fdo = {**_FDO, "provenance": {**_FDO["provenance"], "prov:used": [{"@id": s} for s in sources + sources[:1]]}}
+        obj = self._mock_object(fdo)
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+            self._branch_mock_with_rocrate(mock_repo, obj)
+            assert get_run_metadata(_QID, "model-runs")["input_sources"] == sources          # once each, in order
+
+    def test_input_sources_become_a_ckan_extra_only_when_there_are_some(self):
+        def extras(**kw):
+            with patch("requests.get", return_value=_vocab_get_response()), \
+                 patch("requests.post") as mock_post:
+                mock_post.side_effect = [_post_response({"id": "p"}), _post_response({}), _post_response({})]
+                create_model_run(
+                    model_name="ct-seg", run_id="run-x", qid="Q1748526042817", docker_tag="1.0",
+                    run_timestamp="2026-05-15T11:00:00Z", status="success", computation_time="",
+                    fdo_bytes=b"{}", rocrate_bytes=b"", input_files=[], output_files=[], **kw)
+            return {e["key"]: e["value"] for e in mock_post.call_args_list[0][1]["json"]["extras"]}
+
+        import json as _json
+        assert _json.loads(extras(input_sources=["lakefs://b/main/1/i.parquet?version=aa"])["input_sources"]) == [
+            "lakefs://b/main/1/i.parquet?version=aa"]
+        assert "input_sources" not in extras() and "input_sources" not in extras(input_sources=[])
 
     def test_reads_correct_object_paths(self):
         obj = self._mock_object(_FDO)

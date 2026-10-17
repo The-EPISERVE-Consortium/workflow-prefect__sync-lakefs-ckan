@@ -83,6 +83,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
         input_dataset_qids       = metadata.get("input_dataset_qids", []),
         data_transformation_sql  = metadata.get("data_transformation_sql", []),
         executed_by               = metadata.get("executed_by", ""),
+        input_sources             = metadata.get("input_sources", []),
     )
     log(f"{run_id}: done.")
 

@@ -148,7 +148,11 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
 
     input_dataset_qids = []
     data_transformation_sql = []
+    input_sources = []      # everything the run read, as recorded in its provenance (URLs with their versions)
     for entry in provenance.get("prov:used", []):
+        source = entry.get("@id", "") if isinstance(entry, dict) else str(entry)
+        if source and source not in input_sources:
+            input_sources.append(source)
         src_uri = entry.get("@id", "") if isinstance(entry, dict) else str(entry)
         qid_part = _qid_from_uri(src_uri)
         if qid_part and qid_part not in input_dataset_qids:
@@ -179,6 +183,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "output_files":           output_files,
         "input_dataset_qids":     input_dataset_qids,
         "data_transformation_sql": data_transformation_sql,
+        "input_sources":          input_sources,
     }
 
 

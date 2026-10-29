@@ -1,5 +1,5 @@
 """
-Register the sync_ckan_with_lakefs flow as a Prefect deployment.
+Register the sync flows as Prefect deployments.
 
 Run once (or on every release) from inside the cluster or any machine that
 can reach the Prefect server:
@@ -15,6 +15,7 @@ from prefect.runner.storage import GitRepository
 from flow.sync_ckan_with_lakefs_modelruns import sync_ckan_with_lakefs
 from flow.sync_ckan_with_lakefs_dataprocessed import sync_ckan_with_lakefs_dataprocessed
 from flow.sync_ckan_with_lakefs_benchmarks import sync_ckan_with_lakefs_benchmarks
+from flow.sync_ckan_with_lakefs_models import sync_ckan_with_lakefs_models
 
 GITHUB_REPO_URL = "https://github.com/The-EPISERVE-Consortium/workflow-prefect__sync-lakefs-ckan"
 DOCKER_IMAGE    = "ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest"
@@ -67,4 +68,20 @@ if __name__ == "__main__":
             "lakefs_benchmarks_repo": os.getenv("LAKEFS_BENCHMARKS_REPO", "benchmarks"),
         },
         cron=os.getenv("BENCHMARKS_SYNC_CRON", "*/15 * * * *"),
+    )
+
+    sync_ckan_with_lakefs_models.from_source(
+        source=source,
+        entrypoint="flow/sync_ckan_with_lakefs_models.py:sync_ckan_with_lakefs_models",
+    ).deploy(
+        name=os.getenv("DEPLOYMENT_NAME_MODELS", "sync-ckan-with-lakefs-models"),
+        work_pool_name=WORK_POOL_NAME,
+        job_variables={
+            "image": DOCKER_IMAGE,
+            "image_pull_policy": "Always",
+        },
+        parameters={
+            "lakefs_models_repo": os.getenv("LAKEFS_MODELS_REPO", "models"),
+        },
+        cron=os.getenv("MODELS_SYNC_CRON", "*/15 * * * *"),
     )

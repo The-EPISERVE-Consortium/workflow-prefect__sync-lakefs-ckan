@@ -1,18 +1,29 @@
 """
-Prefect flow that periodically scans the lakeFS models repository and
-registers any new model descriptor FDOs in CKAN.
+Prefect flow that periodically scans the lakeFS models repository, brings each
+model descriptor FDO in step with the model card in the model's repository, and
+registers it in CKAN.
 """
 
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
 from tools.ckan_tools import create_model
-from tools.lakefs_tools import get_model_metadata, list_models
+from tools.lakefs_tools import ensure_model_fdo, get_model_metadata, list_models
 
 
 def _do_sync_model(model_qid: str, lakefs_models_repo: str, log=print, force_recreate: bool = False) -> None:
     try:
         meta = get_model_metadata(model_qid, lakefs_models_repo)
+        if meta.get("docker_image"):
+            # Bring the lakeFS FDO in step with the model card in the model's repository.
+            ensure_model_fdo(
+                docker_image       = meta["docker_image"],
+                model_name         = meta.get("name", ""),
+                docker_tag         = meta.get("docker_tag", ""),
+                lakefs_models_repo = lakefs_models_repo,
+                log                = log,
+            )
+            meta = get_model_metadata(model_qid, lakefs_models_repo)
     except Exception as e:
         log(f"{model_qid}: skipping — {e}")
         return
@@ -34,7 +45,7 @@ def _do_sync_model(model_qid: str, lakefs_models_repo: str, log=print, force_rec
         domain                = meta.get("domain",                ""),
         modality              = meta.get("modality",              ""),
         paper_doi             = meta.get("paper_doi",             ""),
-        additional_properties = meta.get("additional_properties", []),
+        model_card            = meta.get("model_card"),
         force_recreate        = force_recreate,
     )
     log(f"{model_qid}: done.")

@@ -8,6 +8,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
+from episerve_specs import validate as validate_spec
+
 from tools.github_tools import get_image_created
 
 def _ckan_url() -> str:
@@ -367,6 +369,33 @@ def touch_raw_dataset_modified_if_changed(
 
 # ── Dataset creation ───────────────────────────────────────────────────────────
 
+# Model card sections stored as CKAN extras (JSON text), named model_<section>.
+MODEL_CARD_SECTIONS = ("task", "parameters", "inputs", "outputs", "resources", "documentation")
+MODEL_CARD_EXTRAS = {f"model_{s}" for s in MODEL_CARD_SECTIONS} | {"model_card_valid", "model_card_validation"}
+
+
+def model_card_extras(card: dict | None) -> dict:
+    """CKAN extras for a model card: its ``episerve:`` sections and the result of validating it.
+
+    An invalid card is still registered; ``model_card_valid`` is then ``false`` and
+    ``model_card_validation`` lists the issues.
+    """
+    if card is None:
+        return {}
+    extras = {
+        f"model_{section}": json.dumps(card[f"episerve:{section}"], ensure_ascii=False)
+        for section in MODEL_CARD_SECTIONS
+        if f"episerve:{section}" in card
+    }
+    try:
+        result = validate_spec(card, spec=None if card.get("conformsTo") else "model-card").to_dict()
+    except ValueError as e:  # a conformsTo naming a spec or version the validator does not know
+        result = {"valid": False, "issues": [{"severity": "error", "path": "conformsTo", "message": str(e)}]}
+    extras["model_card_valid"] = "true" if result["valid"] else "false"
+    extras["model_card_validation"] = json.dumps(result, ensure_ascii=False)
+    return extras
+
+
 def create_model(
     name: str,
     description: str,
@@ -383,17 +412,22 @@ def create_model(
     docker_image_created: str = "",
     model_qid: str = "",
     fdo_bytes: bytes = b"",
-    additional_properties: list = [],
+    model_card: dict | None = None,
     force_recreate: bool = False,
 ) -> dict:
     """
     Create a model descriptor dataset in CKAN.
 
-    Idempotent: if a dataset with this name already exists, returns it unchanged.
+    Idempotent: if a dataset with this name already exists, only its notes, url
+    and model card extras are brought in step with the model card.
     The dataset is placed in the type-model group. The git_repo is stored in the
     standard CKAN url field (shown as 'Source'). The description includes a
-    'Browse all runs' link pointing to the filtered run search.
+    'Browse all runs' link pointing to the filtered run search. The card's
+    sections are the extras model_task, model_parameters, model_inputs,
+    model_outputs, model_resources and model_documentation (JSON); with
+    model_card_valid and model_card_validation (see model_card_extras).
     """
+    card_extras = model_card_extras(model_card)
     slug = model_qid.lower()
     r = requests.get(f"{_ckan_url()}/api/3/action/package_show?id={slug}")
     body = _parse_json(r, "package_show")
@@ -411,6 +445,12 @@ def create_model(
                     patch["notes"] = desired_notes
             if git_repo and pkg.get("url") != git_repo:
                 patch["url"] = git_repo
+            if model_card is not None:
+                current = {e["key"]: e["value"] for e in pkg.get("extras", [])}
+                if {k: v for k, v in current.items() if k in MODEL_CARD_EXTRAS} != card_extras:
+                    patch["extras"] = [
+                        {"key": k, "value": v} for k, v in current.items() if k not in MODEL_CARD_EXTRAS
+                    ] + [{"key": k, "value": v} for k, v in card_extras.items()]
             if patch:
                 patch["id"] = slug
                 pkg = _ckan_api("package_patch", patch)
@@ -440,8 +480,7 @@ def create_model(
             {"key": "output_format",       "value": output_format},
             {"key": "lead_researcher",     "value": lead_researcher},
             {"key": "paper_doi",           "value": paper_doi},
-            *([{"key": "model_parameters", "value": json.dumps(additional_properties)}]
-              if additional_properties else []),
+            *[{"key": k, "value": v} for k, v in card_extras.items()],
         ],
     })
     if fdo_bytes and model_qid:
@@ -449,7 +488,7 @@ def create_model(
     return pkg
 
 
-def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", description: str = "", git_repo: str = "", additional_properties: list = [], force_recreate: bool = False) -> dict:
+def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", model_qid: str = "", fdo_bytes: bytes = b"", description: str = "", git_repo: str = "", model_card: dict | None = None, force_recreate: bool = False) -> dict:
     """
     Ensure a model descriptor exists in CKAN, creating a placeholder if not.
     When description/git_repo are provided they are used; otherwise a placeholder
@@ -469,7 +508,7 @@ def ensure_model(model_name: str, docker_image: str = "", docker_tag: str = "", 
         input_format          = "",
         output_format         = "",
         lead_researcher       = "",
-        additional_properties = additional_properties,
+        model_card            = model_card,
         force_recreate        = force_recreate,
     )
 

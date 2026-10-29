@@ -235,6 +235,18 @@ def _build_placeholder_model_fdo(
     }
 
 
+def _model_profile(placeholder: dict, card: dict | None) -> dict:
+    """The model's profile: the placeholder profile with every field of its card on top.
+
+    The card is the model repository's ``fdo.json`` (a model card); ``@id`` always stays the QID.
+    """
+    profile = dict(placeholder)
+    for key, value in (card or {}).items():
+        if key != "@id":
+            profile[key] = value
+    return profile
+
+
 def ensure_model_fdo(
     docker_image: str,
     model_name: str,
@@ -242,46 +254,58 @@ def ensure_model_fdo(
     lakefs_models_repo: str,
     force: bool = False,
     log=print,
+    refresh: bool = True,
 ) -> str:
     """
-    Ensure a model descriptor FDO exists in the lakeFS models repo.
+    Ensure the model descriptor FDO in the lakeFS models repo matches the model card.
 
-    Checks the model's GitHub source repo for an existing fdo.json; if found,
-    its fields are merged into the profile of the FDO. Otherwise a placeholder
-    is written. The QID is always derived from docker_image — never taken from
-    the repo file. Returns the stable model QID.
+    The card is the model's GitHub repository's fdo.json; its fields make up the
+    FDO profile. A new FDO is written when none exists (a placeholder if the repo
+    has no card). With refresh, an existing one is rewritten when its profile
+    differs from the card; without, it is returned as it is. The QID is always
+    derived from docker_image, never taken from the card. Returns (QID, FDO bytes).
     """
     qid    = mint_model_qid(docker_image)
     path   = f"{shard_qid(qid)}/{qid}.fdo.json"
     client = _lakefs_client()
     branch = lakefs.Repository(lakefs_models_repo, client=client).branch(LAKEFS_BRANCH)
 
+    existing_bytes = None
     if not force:
         try:
             with branch.object(path).reader() as f:
                 existing_bytes = f.read()
-            log(f"  model '{model_name}' ({qid}): already in lakeFS models repo, skipping.")
-            return qid, existing_bytes
         except ObjectNotFoundException:
             pass
 
-    fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
+    if existing_bytes is not None and not refresh:
+        log(f"  model '{model_name}' ({qid}): already in lakeFS models repo.")
+        return qid, existing_bytes
 
-    if docker_image.startswith("ghcr.io/"):
-        repo_path = docker_image[len("ghcr.io/"):]
-        gh_url = f"https://raw.githubusercontent.com/{repo_path}/HEAD/fdo.json"
-        log(f"  model '{model_name}' ({qid}): trying to get model fdo info from {gh_url}")
+    card = get_repo_fdo(docker_image)
+    if existing_bytes is not None:
+        if card is None:
+            log(f"  model '{model_name}' ({qid}): in lakeFS models repo, no card in the repository — keeping it.")
+            return qid, existing_bytes
+        fdo = json.loads(existing_bytes)
+        old = fdo.get("profile", {})
+        placeholder = _build_placeholder_model_fdo(qid, docker_image, model_name, old.get("softwareVersion", docker_tag))["profile"]
+        profile = _model_profile(placeholder, card)
+        if profile == old:
+            log(f"  model '{model_name}' ({qid}): in lakeFS models repo and up to date.")
+            return qid, existing_bytes
+        fdo["profile"] = profile
+        fdo.setdefault("kernel", {})["modified"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        message = f"update model fdo for {qid} from its model card"
+        log(f"  model '{model_name}' ({qid}): model card changed — updating.")
     else:
-        gh_url = None
-
-    repo_metadata = get_repo_fdo(docker_image)
-    if repo_metadata is not None:
-        log(f"  model '{model_name}' ({qid}): fdo.json found — merging profile metadata.")
-        for key, value in repo_metadata.items():
-            if key not in ("@id", "@context"):
-                fdo["profile"][key] = value
-    else:
-        log(f"  model '{model_name}' ({qid}): no fdo.json found — writing placeholder.")
+        fdo = _build_placeholder_model_fdo(qid, docker_image, model_name, docker_tag)
+        if card is not None:
+            log(f"  model '{model_name}' ({qid}): model card found in the repository.")
+            fdo["profile"] = _model_profile(fdo["profile"], card)
+        else:
+            log(f"  model '{model_name}' ({qid}): no fdo.json in the repository — writing placeholder.")
+        message = f"add model fdo for {qid}"
 
     fdo_bytes = json.dumps(fdo, indent=2).encode()
     # pre_sign=False: upload via the lakeFS API, not a presigned PUT. The SDK
@@ -289,7 +313,7 @@ def ensure_model_fdo(
     # rejects the mismatch with 403 AccessDenied. Same fix as
     # workflow-prefect__dataset-downloader and workflow-prefect__model-runner.
     branch.object(path).upload(data=fdo_bytes, content_type="application/json", pre_sign=False)
-    branch.commit(message=f"add model fdo for {qid}")
+    branch.commit(message=message)
     log(f"  model '{model_name}' ({qid}): written to lakeFS models repo.")
     return qid, fdo_bytes
 
@@ -331,7 +355,7 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
         "modality":              extras.get("modality",           ""),
         "paper_doi":             extras.get("paper_doi",          ""),
         "docker_image_created":  extras.get("docker_image_created", ""),
-        "additional_properties": profile.get("additionalProperty", []),
+        "model_card":            profile,
         "fdo_bytes":             raw,
     }
 

@@ -1,6 +1,6 @@
 # workflow-prefect__sync-lakefs-ckan
 
-Two Prefect flows that keep the CKAN data catalog in sync with lakeFS. One flow handles processed datasets (`data-processed`), the other handles model run results (`model-runs`). Both are intended to run on a schedule.
+Prefect flows that keep the CKAN data catalog in sync with lakeFS: processed datasets (`data-processed`), model runs (`model-runs`), models (`models`) and generated benchmark files (`benchmarks`). All are intended to run on a schedule.
 
 ## Flows
 
@@ -9,16 +9,25 @@ Two Prefect flows that keep the CKAN data catalog in sync with lakeFS. One flow 
 **File:** `flow/sync_ckan_with_lakefs_modelruns.py`  
 **Deployment:** `sync-ckan-with-lakefs-modelruns`
 
-Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo.json`) and RO-Crate (`ro-crate-metadata.json`) for each run, and registers any new runs as CKAN datasets in the `type-model-run` group. A normal run also re-syncs each model's CKAN descriptor (notes/url) from its `fdo.json` whenever a new run of that model is registered.
+Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo.json`) and RO-Crate (`ro-crate-metadata.json`) for each run, and registers any new runs as CKAN datasets in the `type-model-run` group. For a run of a model that is not registered yet, it writes the model's FDO to the lakeFS repo `models` (from the model card, see below) and creates its CKAN entry; for a registered model it brings the CKAN entry in step with the FDO in lakeFS. It never rewrites a model FDO in lakeFS; that is the models flow's job, since runs of the same model are synced concurrently.
 
 Existing run entries are skipped unless `force_recreate=True`. **`force_recreate=True` is not concurrency-safe** — model handling is per-run and all run tasks run concurrently, so N runs of the same model race on the lakeFS `models` commit (`predicate failed`) and the CKAN model-descriptor delete/recreate (`URL already in use`, 500s). Use it only against a stopped scheduler, and only expect the run entries themselves to be rebuilt cleanly.
+
+### `sync_ckan_with_lakefs_models` — models
+
+**File:** `flow/sync_ckan_with_lakefs_models.py`  
+**Deployment:** `sync-ckan-with-lakefs-models` (every 15 minutes, `MODELS_SYNC_CRON`)
+
+For each model FDO in the lakeFS repo `models`: fetches the model card (`fdo.json` in the model's GitHub repository `ghcr.io/<owner>/<repo>` → `github.com/<owner>/<repo>`, default branch), rewrites the FDO's profile when the card changed, and creates or updates the model's CKAN entry in the group `type-model`.
+
+The model card follows the spec `model-card` v1 of [`episerve_specs`](https://github.com/The-EPISERVE-Consortium/episerve_specs). Its sections become CKAN extras with JSON values: `model_task`, `model_parameters` (the JSON Schema of `config.json`), `model_inputs`, `model_outputs`, `model_resources`, `model_documentation`. The card is validated with `episerve_specs`; the result is stored as `model_card_valid` (`true`/`false`) and `model_card_validation` (issues and validator version). An invalid card is still registered. A model whose repository has no card keeps a placeholder FDO and gets `model_card_valid = false`. The extras, notes and url of an existing entry are updated in place; `force_recreate=True` deletes and recreates the entry (and re-uploads its FDO resource).
 
 ### `sync_ckan_with_lakefs_benchmarks` — generated benchmark files
 
 **File:** `flow/sync_ckan_with_lakefs_benchmarks.py`  
 **Deployment:** `sync-ckan-with-lakefs-benchmarks` (every 15 minutes)
 
-The API server stores the input and the reference file of every finalized benchmark as one FDO object with two components (own QID, `.fdo.json` sidecar) in the lakeFS repository `benchmarks`. The flow creates a CKAN dataset for each new object in the group `type-benchmark-data` (so the files are not offered as source datasets), with one resource per file and the extras `benchmark_id`, `source_qids`, `data_commit` and `access = open`. Objects never change, so existing ones are skipped. The group must exist in CKAN. Deploy only this flow with `python -c "import deploy"`-style code or by running `deploy.py` (which redeploys all three).
+The API server stores the input and the reference file of every finalized benchmark as one FDO object with two components (own QID, `.fdo.json` sidecar) in the lakeFS repository `benchmarks`. The flow creates a CKAN dataset for each new object in the group `type-benchmark-data` (so the files are not offered as source datasets), with one resource per file and the extras `benchmark_id`, `source_qids`, `data_commit` and `access = open`. Objects never change, so existing ones are skipped. The group must exist in CKAN. Deploy only this flow with `python -c "import deploy"`-style code or by running `deploy.py` (which redeploys all four).
 
 ### `sync_ckan_with_lakefs_dataprocessed` — processed datasets
 
@@ -34,12 +43,13 @@ flow/
   sync_ckan_with_lakefs_modelruns.py      # model runs → CKAN
   sync_ckan_with_lakefs_dataprocessed.py  # data-processed → CKAN
   sync_ckan_with_lakefs_benchmarks.py     # benchmarks → CKAN (group type-benchmark-data)
+  sync_ckan_with_lakefs_models.py         # models (model cards) → lakeFS models + CKAN (group type-model)
 tools/
   ckan_tools.py      # CKAN API helpers
   lakefs_tools.py    # lakeFS listing and metadata reading
   sharding.py        # QID sharding logic
 tests/               # pytest unit tests
-deploy.py            # creates/updates both Prefect deployments
+deploy.py            # creates/updates the four Prefect deployments
 Dockerfile           # python:3.12-slim image for the Prefect worker
 .github/workflows/   # build → push → deploy pipeline
 ```
@@ -114,4 +124,4 @@ export LAKEFS_SECRET_KEY=...
 python deploy.py
 ```
 
-This creates or updates both deployments (`sync-ckan-with-lakefs-modelruns` and `sync-ckan-with-lakefs-dataprocessed`) on the `kubernetes-pool` work pool. The image `ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest` must already exist (CI builds and pushes it).
+This creates or updates the deployments `sync-ckan-with-lakefs-modelruns`, `sync-ckan-with-lakefs-dataprocessed`, `sync-ckan-with-lakefs-benchmarks` and `sync-ckan-with-lakefs-models` on the `kubernetes-pool` work pool. The image `ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest` must already exist (CI builds and pushes it).

@@ -81,12 +81,13 @@ class TestEnsureModelFdo:
 
         return branch
 
-    def test_returns_existing_qid_without_writing(self):
+    def test_returns_existing_without_writing_when_repo_has_no_card(self):
         image = "ghcr.io/example/model"
         expected_qid = mint_model_qid(image)
 
         with patch("tools.lakefs_tools._lakefs_client"), \
-             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo:
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
+             patch("tools.lakefs_tools.get_repo_fdo", return_value=None):
             self._branch_mock(mock_repo, exists=True)
             qid, fdo_bytes = ensure_model_fdo(image, "model", "1.0", "models")
 
@@ -146,6 +147,63 @@ class TestEnsureModelFdo:
         assert fdo["profile"]["codeRepository"] == "https://github.com/example/model"
         # QID-specific identity fields are never overwritten by the repo file
         assert fdo["profile"]["@id"] == expected_qid
+
+    def _existing_branch(self, mock_repo, fdo: dict):
+        branch = mock_repo.return_value.branch.return_value
+        branch.object.return_value = _make_reader_mock(json.dumps(fdo).encode())
+        return branch
+
+    def test_existing_fdo_updated_when_card_changed(self):
+        image = "ghcr.io/example/model"
+        qid = mint_model_qid(image)
+        old = _build_placeholder_model_fdo(qid, image, "model", "1.0")
+        old["profile"]["additionalProperty"] = [{"name": "horizon"}]  # a field the card no longer has
+        card = {"@type": "SoftwareApplication", "name": "model", "description": "New.",
+                "episerve:parameters": {"type": "object", "properties": {}}}
+
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
+             patch("tools.lakefs_tools.get_repo_fdo", return_value=card):
+            branch = self._existing_branch(mock_repo, old)
+            _, fdo_bytes = ensure_model_fdo(image, "model", "2.0", "models")
+
+        fdo = json.loads(branch.object.return_value.upload.call_args[1]["data"])
+        assert fdo_bytes == branch.object.return_value.upload.call_args[1]["data"]
+        assert fdo["profile"]["description"] == "New."
+        assert fdo["profile"]["episerve:parameters"] == card["episerve:parameters"]
+        assert "additionalProperty" not in fdo["profile"]
+        assert fdo["profile"]["@id"] == qid
+        assert fdo["profile"]["softwareVersion"] == "1.0"  # kept from the first registration
+        assert fdo["provenance"] == old["provenance"]
+        branch.commit.assert_called_once()
+
+    def test_existing_fdo_kept_when_card_unchanged(self):
+        image = "ghcr.io/example/model"
+        qid = mint_model_qid(image)
+        card = {"@type": "SoftwareApplication", "name": "model", "description": "Same."}
+        fdo = _build_placeholder_model_fdo(qid, image, "model", "1.0")
+        fdo["profile"].update(card)
+
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
+             patch("tools.lakefs_tools.get_repo_fdo", return_value=card):
+            branch = self._existing_branch(mock_repo, fdo)
+            ensure_model_fdo(image, "model", "2.0", "models")
+
+        branch.object.return_value.upload.assert_not_called()
+        branch.commit.assert_not_called()
+
+    def test_existing_fdo_not_refreshed_without_refresh(self):
+        image = "ghcr.io/example/model"
+        with patch("tools.lakefs_tools._lakefs_client"), \
+             patch("tools.lakefs_tools.lakefs.Repository") as mock_repo, \
+             patch("tools.lakefs_tools.get_repo_fdo") as mock_card:
+            branch = self._branch_mock(mock_repo, exists=True)
+            _, fdo_bytes = ensure_model_fdo(image, "model", "1.0", "models", refresh=False)
+
+        assert fdo_bytes == b'{"@id": "Q9999999999999"}'
+        mock_card.assert_not_called()
+        branch.commit.assert_not_called()
 
     def test_force_overwrites_existing(self):
         image = "ghcr.io/example/model"
@@ -207,6 +265,7 @@ class TestDoSyncModel:
             return _vocab_get_response()
 
         with patch.object(m, "get_model_metadata", return_value=meta), \
+             patch.object(m, "ensure_model_fdo") as mock_fdo, \
              patch("requests.get", side_effect=get_side), \
              patch("requests.post") as mock_post:
             mock_post.return_value = MagicMock()
@@ -218,6 +277,9 @@ class TestDoSyncModel:
         assert payload["title"] == "my-model"
         extras = {e["key"]: e["value"] for e in payload["extras"]}
         assert extras["model_qid"] == "Q1234567890123"
+        # the lakeFS FDO is first brought in step with the model card
+        mock_fdo.assert_called_once()
+        assert mock_fdo.call_args.kwargs["docker_image"] == "ghcr.io/ex/my-model"
 
     def test_skips_on_metadata_error(self):
         with patch.object(m, "get_model_metadata", side_effect=Exception("not found")), \

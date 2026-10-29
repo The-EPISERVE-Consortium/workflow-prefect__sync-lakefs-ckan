@@ -49,6 +49,9 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
             lakefs_models_repo = lakefs_models_repo,
             force              = force_recreate,
             log                = log,
+            # The models flow refreshes the FDO from the model card once per
+            # model; here, runs of the same model are synced concurrently.
+            refresh            = False,
         )
         log(f"{run_id}: model QID → {model_qid}")
     if model_name:
@@ -64,7 +67,7 @@ def _do_sync_run(run_id: str, lakefs_run_repo: str, log=print, force_recreate: b
             fdo_bytes             = model_fdo_bytes,
             description           = _fdo_profile.get("description", ""),
             git_repo              = _fdo_profile.get("codeRepository", ""),
-            additional_properties = _fdo_profile.get("additionalProperty", []),
+            model_card            = _fdo_profile or None,
             force_recreate        = force_recreate,
         )
     create_model_run(

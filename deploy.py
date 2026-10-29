@@ -11,6 +11,7 @@ can reach the Prefect server:
 import os
 
 from prefect.runner.storage import GitRepository
+from prefect.schedules import Cron
 
 from flow.sync_ckan_with_lakefs_modelruns import sync_ckan_with_lakefs
 from flow.sync_ckan_with_lakefs_dataprocessed import sync_ckan_with_lakefs_dataprocessed
@@ -52,6 +53,8 @@ if __name__ == "__main__":
         parameters={
             "lakefs_processed_repo": os.getenv("LAKEFS_PROCESSED_REPO", "data-processed"),
         },
+        # After the dataset downloads (01:00 Berlin), so new data is in CKAN the same morning.
+        schedule=Cron(os.getenv("DATAPROCESSED_SYNC_CRON", "0 4 * * *"), timezone="Europe/Berlin"),
     )
 
     sync_ckan_with_lakefs_benchmarks.from_source(

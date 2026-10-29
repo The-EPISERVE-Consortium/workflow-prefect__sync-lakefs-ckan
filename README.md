@@ -7,7 +7,7 @@ Prefect flows that keep the CKAN data catalog in sync with lakeFS: processed dat
 ### `sync_ckan_with_lakefs` — model runs
 
 **File:** `flow/sync_ckan_with_lakefs_modelruns.py`  
-**Deployment:** `sync-ckan-with-lakefs-modelruns`
+**Deployment:** `sync-ckan-with-lakefs-modelruns` (no schedule; a Prefect automation starts it after every completed `model-runner` run)
 
 Scans `model-runs` in lakeFS for QID folders, reads the FDO metadata (`<QID>.fdo.json`) and RO-Crate (`ro-crate-metadata.json`) for each run, and registers any new runs as CKAN datasets in the `type-model-run` group. For a run of a model that is not registered yet, it writes the model's FDO to the lakeFS repo `models` (from the model card, see below) and creates its CKAN entry; for a registered model it brings the CKAN entry in step with the FDO in lakeFS. It never rewrites a model FDO in lakeFS; that is the models flow's job, since runs of the same model are synced concurrently.
 
@@ -32,7 +32,7 @@ The API server stores the input and the reference file of every finalized benchm
 ### `sync_ckan_with_lakefs_dataprocessed` — processed datasets
 
 **File:** `flow/sync_ckan_with_lakefs_dataprocessed.py`  
-**Deployment:** `sync-ckan-with-lakefs-dataprocessed`
+**Deployment:** `sync-ckan-with-lakefs-dataprocessed` (daily 04:00 Europe/Berlin, after the dataset downloads at 01:00; `DATAPROCESSED_SYNC_CRON`)
 
 Scans `data-processed` in lakeFS for `.fdo.json` sidecar files, reads the FDO metadata, and registers any new datasets as CKAN datasets in the `type-raw-data` group. Supports `update=True` to overwrite metadata of already-registered entries.
 
@@ -112,7 +112,7 @@ pytest tests/
 
 ## Deploying
 
-CI deploys automatically on every push to `main`. To deploy manually:
+CI only tests and builds the image; it does not register deployments. Register them by hand:
 
 ```bash
 export PREFECT_API_URL=http://prefect-server.default.svc.cluster.local:4200/api

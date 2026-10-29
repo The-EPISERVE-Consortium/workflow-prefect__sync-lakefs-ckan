@@ -1,4 +1,4 @@
 prefect>=3.0
 lakefs
 requests
-episerve-specs @ https://github.com/The-EPISERVE-Consortium/episerve_specs/archive/refs/tags/v0.2.1.tar.gz
+episerve-specs @ https://github.com/The-EPISERVE-Consortium/episerve_specs/archive/refs/tags/v0.3.0.tar.gz

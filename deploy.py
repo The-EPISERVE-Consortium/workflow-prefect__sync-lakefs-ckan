@@ -70,7 +70,7 @@ if __name__ == "__main__":
         parameters={
             "lakefs_benchmarks_repo": os.getenv("LAKEFS_BENCHMARKS_REPO", "benchmarks"),
         },
-        cron=os.getenv("BENCHMARKS_SYNC_CRON", "*/15 * * * *"),
+        cron=os.getenv("BENCHMARKS_SYNC_CRON", "25 * * * *"),
     )
 
     sync_ckan_with_lakefs_models.from_source(
@@ -86,5 +86,5 @@ if __name__ == "__main__":
         parameters={
             "lakefs_models_repo": os.getenv("LAKEFS_MODELS_REPO", "models"),
         },
-        cron=os.getenv("MODELS_SYNC_CRON", "*/15 * * * *"),
+        cron=os.getenv("MODELS_SYNC_CRON", "20 * * * *"),
     )

@@ -16,7 +16,7 @@ Existing run entries are skipped unless `force_recreate=True`. **`force_recreate
 ### `sync_ckan_with_lakefs_models` — models
 
 **File:** `flow/sync_ckan_with_lakefs_models.py`  
-**Deployment:** `sync-ckan-with-lakefs-models` (every 15 minutes, `MODELS_SYNC_CRON`)
+**Deployment:** `sync-ckan-with-lakefs-models` (hourly at :20, `MODELS_SYNC_CRON`)
 
 For each model FDO in the lakeFS repo `models`: fetches the model card (`fdo.json` in the model's GitHub repository `ghcr.io/<owner>/<repo>` → `github.com/<owner>/<repo>`, default branch), rewrites the FDO's profile when the card changed, and creates or updates the model's CKAN entry in the group `type-model`.
 
@@ -25,7 +25,7 @@ The model card follows the spec `model-card` v1 of [`episerve_specs`](https://gi
 ### `sync_ckan_with_lakefs_benchmarks` — generated benchmark files
 
 **File:** `flow/sync_ckan_with_lakefs_benchmarks.py`  
-**Deployment:** `sync-ckan-with-lakefs-benchmarks` (every 15 minutes)
+**Deployment:** `sync-ckan-with-lakefs-benchmarks` (hourly at :25, `BENCHMARKS_SYNC_CRON`)
 
 The API server stores the input and the reference file of every finalized benchmark as one FDO object with two components (own QID, `.fdo.json` sidecar) in the lakeFS repository `benchmarks`. The flow creates a CKAN dataset for each new object in the group `type-benchmark-data` (so the files are not offered as source datasets), with one resource per file and the extras `benchmark_id`, `source_qids`, `data_commit` and `access = open`. Objects never change, so existing ones are skipped. The group must exist in CKAN. Deploy only this flow with `python -c "import deploy"`-style code or by running `deploy.py` (which redeploys all four).
 

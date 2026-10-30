@@ -47,6 +47,7 @@ def _do_sync_model(model_qid: str, lakefs_models_repo: str, log=print, force_rec
         paper_doi             = meta.get("paper_doi",             ""),
         model_card            = meta.get("model_card"),
         force_recreate        = force_recreate,
+        created               = meta.get("created",               ""),
     )
     log(f"{model_qid}: done.")
 

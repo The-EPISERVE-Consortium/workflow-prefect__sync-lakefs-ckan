@@ -175,6 +175,7 @@ def get_run_metadata(run_id: str, lakefs_run_repo: str) -> dict:
         "docker_tag":          docker_tag,
         "executed_by":          executed_by,
         "run_timestamp":       kernel.get("modified",                  ""),
+        "created":             provenance.get("prov:startedAtTime", "") or kernel.get("modified", ""),
         "status":              status,
         "computation_time":    "",
         "fdo_bytes":           raw,
@@ -355,6 +356,8 @@ def get_model_metadata(model_qid: str, lakefs_models_repo: str) -> dict:
         "modality":              extras.get("modality",           ""),
         "paper_doi":             extras.get("paper_doi",          ""),
         "docker_image_created":  extras.get("docker_image_created", ""),
+        # when the model was first registered (the FDO's own creation time, kept when the FDO is rewritten)
+        "created":               (fdo.get("provenance") or {}).get("prov:generatedAtTime", ""),
         "model_card":            profile,
         "fdo_bytes":             raw,
     }

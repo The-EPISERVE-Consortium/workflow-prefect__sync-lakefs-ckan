@@ -482,6 +482,7 @@ class TestSyncRun:
             data_transformation_sql = [],
             executed_by = "",
             input_sources = [],
+            created = "",
         )
 
 

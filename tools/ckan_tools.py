@@ -414,6 +414,7 @@ def create_model(
     fdo_bytes: bytes = b"",
     model_card: dict | None = None,
     force_recreate: bool = False,
+    created: str = "",
 ) -> dict:
     """
     Create a model descriptor dataset in CKAN.
@@ -426,6 +427,9 @@ def create_model(
     sections are the extras model_task, model_parameters, model_inputs,
     model_outputs, model_resources and model_documentation (JSON); with
     model_card_valid and model_card_validation (see model_card_extras).
+    ``created`` (the model FDO's ``prov:generatedAtTime``) is kept as the extra
+    ``created``: CKAN's own metadata_created is the time the entry was created
+    and changes when it is recreated.
     """
     card_extras = model_card_extras(model_card)
     slug = model_qid.lower()
@@ -445,12 +449,14 @@ def create_model(
                     patch["notes"] = desired_notes
             if git_repo and pkg.get("url") != git_repo:
                 patch["url"] = git_repo
+            current = {e["key"]: e["value"] for e in pkg.get("extras", [])}
+            desired = dict(current)
             if model_card is not None:
-                current = {e["key"]: e["value"] for e in pkg.get("extras", [])}
-                if {k: v for k, v in current.items() if k in MODEL_CARD_EXTRAS} != card_extras:
-                    patch["extras"] = [
-                        {"key": k, "value": v} for k, v in current.items() if k not in MODEL_CARD_EXTRAS
-                    ] + [{"key": k, "value": v} for k, v in card_extras.items()]
+                desired = {k: v for k, v in desired.items() if k not in MODEL_CARD_EXTRAS} | card_extras
+            if created:
+                desired["created"] = created
+            if desired != current:
+                patch["extras"] = [{"key": k, "value": v} for k, v in desired.items()]
             if patch:
                 patch["id"] = slug
                 pkg = _ckan_api("package_patch", patch)
@@ -480,6 +486,7 @@ def create_model(
             {"key": "output_format",       "value": output_format},
             {"key": "lead_researcher",     "value": lead_researcher},
             {"key": "paper_doi",           "value": paper_doi},
+            *([{"key": "created", "value": created}] if created else []),
             *[{"key": k, "value": v} for k, v in card_extras.items()],
         ],
     })
@@ -530,10 +537,11 @@ def create_model_run(
     data_transformation_sql: list = [],
     executed_by: str = "",
     input_sources: list = [],
+    created: str = "",
 ) -> dict:
     """
     Create a model run dataset in CKAN and attach all input and output files
-    as resources.
+    as resources. ``created`` (the run's start) is kept as the extra ``created``.
 
     rocrate_bytes is uploaded as an actual file to CKAN.
     input_files / output_files are lists of lakeFS HTTP API URLs stored as
@@ -575,6 +583,7 @@ def create_model_run(
             {"key": "status",               "value": status},
             {"key": "computation_time",     "value": computation_time},
             *([{"key": "executed_by", "value": executed_by}] if executed_by else []),
+            *([{"key": "created", "value": created}] if created else []),
             *([{"key": "input_sources", "value": json.dumps(input_sources)}] if input_sources else []),
             *([{"key": "input_dataset_qids", "value": json.dumps(input_dataset_qids)}]
               if input_dataset_qids else []),

@@ -186,3 +186,31 @@ def test_existing_model_card_extras_in_sync_not_patched():
             lead_researcher="", model_qid="Q1", model_card=card,
         )
     assert not any(c.args[0] == "package_patch" for c in api.call_args_list)
+
+
+def test_model_created_extra_is_set_on_create_and_patched_when_missing(monkeypatch):
+    from unittest.mock import MagicMock
+    from tools import ckan_tools
+
+    calls = []
+    monkeypatch.setattr(ckan_tools, "_vocabs", lambda: {})
+    monkeypatch.setattr(ckan_tools, "_ckan_api", lambda action, data: calls.append((action, data)) or {"id": "x"})
+    monkeypatch.setattr(ckan_tools, "_ckan_url", lambda: "http://ckan")
+    missing = MagicMock(); missing.json.return_value = {"success": False}
+    monkeypatch.setattr(ckan_tools.requests, "get", lambda url: missing)
+    ckan_tools.create_model("m", "d", "", "img", "latest", "", "", "", "", model_qid="Q1",
+                            created="2026-09-02T20:27:56Z")
+    (action, data), = [c for c in calls if c[0] == "package_create"]
+    assert {"key": "created", "value": "2026-09-02T20:27:56Z"} in data["extras"]
+
+    calls.clear()
+    existing = MagicMock()
+    existing.json.return_value = {"success": True, "result": {"notes": "", "url": "", "extras": [
+        {"key": "docker_tag", "value": "latest"}]}}
+    monkeypatch.setattr(ckan_tools.requests, "get", lambda url: existing)
+    ckan_tools.create_model("m", "", "", "img", "latest", "", "", "", "", model_qid="Q1",
+                            created="2026-09-02T20:27:56Z")
+    (action, data), = calls
+    assert action == "package_patch"
+    assert {"key": "created", "value": "2026-09-02T20:27:56Z"} in data["extras"]
+    assert {"key": "docker_tag", "value": "latest"} in data["extras"]

@@ -429,7 +429,8 @@ def create_model(
     model_card_valid and model_card_validation (see model_card_extras).
     ``created`` (the model FDO's ``prov:generatedAtTime``) is kept as the extra
     ``created``: CKAN's own metadata_created is the time the entry was created
-    and changes when it is recreated.
+    and changes when it is recreated. ``docker_image_created`` (the image's build time)
+    is updated on every sync, since a rebuilt image keeps its tag.
     """
     card_extras = model_card_extras(model_card)
     slug = model_qid.lower()
@@ -455,6 +456,8 @@ def create_model(
                 desired = {k: v for k, v in desired.items() if k not in MODEL_CARD_EXTRAS} | card_extras
             if created:
                 desired["created"] = created
+            if docker_image_created:
+                desired["docker_image_created"] = docker_image_created
             if desired != current:
                 patch["extras"] = [{"key": k, "value": v} for k, v in desired.items()]
             if patch:

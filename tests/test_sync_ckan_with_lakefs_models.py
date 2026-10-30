@@ -287,3 +287,16 @@ class TestDoSyncModel:
             m._do_sync_model("Q1234567890123", "models")
 
         mock_create.assert_not_called()
+
+    def test_image_created_read_from_registry_with_latest_as_default_tag(self):
+        meta = {"name": "my-model", "docker_image": "ghcr.io/ex/my-model", "docker_tag": "",
+                "docker_image_created": "", "fdo_bytes": b""}
+        with patch.object(m, "get_model_metadata", return_value=meta), \
+             patch.object(m, "ensure_model_fdo"), \
+             patch.object(m, "get_image_created", return_value="2026-10-30T00:45:26Z") as reg, \
+             patch.object(m, "create_model") as mock_create:
+            m._do_sync_model("Q1234567890123", "models")
+
+        reg.assert_called_once_with("ghcr.io/ex/my-model", "latest")
+        assert mock_create.call_args.kwargs["docker_image_created"] == "2026-10-30T00:45:26Z"
+

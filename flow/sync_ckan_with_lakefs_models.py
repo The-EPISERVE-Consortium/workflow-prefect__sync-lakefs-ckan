@@ -8,6 +8,7 @@ from prefect import flow, task
 from prefect.logging import get_run_logger
 
 from tools.ckan_tools import create_model
+from tools.github_tools import get_image_created
 from tools.lakefs_tools import ensure_model_fdo, get_model_metadata, list_models
 
 
@@ -35,7 +36,9 @@ def _do_sync_model(model_qid: str, lakefs_models_repo: str, log=print, force_rec
         git_repo              = meta.get("git_repo",              ""),
         docker_image          = meta.get("docker_image",          ""),
         docker_tag            = meta.get("docker_tag",            ""),
-        docker_image_created  = meta.get("docker_image_created",  ""),
+        # build time of the image the model runner pulls (no tag means "latest"), from the registry
+        docker_image_created  = meta.get("docker_image_created") or get_image_created(
+            meta.get("docker_image", ""), meta.get("docker_tag") or "latest"),
         model_qid             = model_qid,
         fdo_bytes             = meta.get("fdo_bytes",             b""),
         algorithm             = meta.get("algorithm",             ""),

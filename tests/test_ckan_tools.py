@@ -214,3 +214,21 @@ def test_model_created_extra_is_set_on_create_and_patched_when_missing(monkeypat
     assert action == "package_patch"
     assert {"key": "created", "value": "2026-09-02T20:27:56Z"} in data["extras"]
     assert {"key": "docker_tag", "value": "latest"} in data["extras"]
+
+
+def test_existing_model_image_created_is_updated(monkeypatch):
+    from unittest.mock import MagicMock
+    from tools import ckan_tools
+
+    calls = []
+    monkeypatch.setattr(ckan_tools, "_ckan_api", lambda action, data: calls.append((action, data)) or {"id": "x"})
+    monkeypatch.setattr(ckan_tools, "_ckan_url", lambda: "http://ckan")
+    existing = MagicMock()
+    existing.json.return_value = {"success": True, "result": {"notes": "", "url": "", "extras": [
+        {"key": "docker_image_created", "value": ""}]}}
+    monkeypatch.setattr(ckan_tools.requests, "get", lambda url: existing)
+    ckan_tools.create_model("m", "", "", "img", "latest", "", "", "", "", model_qid="Q1",
+                            docker_image_created="2026-10-30T00:45:26Z")
+    (action, data), = calls
+    assert action == "package_patch"
+    assert {"key": "docker_image_created", "value": "2026-10-30T00:45:26Z"} in data["extras"]

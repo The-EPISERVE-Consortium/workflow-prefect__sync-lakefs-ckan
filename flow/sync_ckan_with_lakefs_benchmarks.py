@@ -1,18 +1,13 @@
-"""
-Prefect flow that registers the generated files of benchmarks in CKAN.
+"""Register generated benchmark files and reconcile portable definition resources.
 
-The API server stores the input and the reference file of every finalized
-benchmark as ONE FDO object with two components in the lakeFS repository
-``benchmarks`` (one QID, one ``.fdo.json``). This flow reads those sidecars and
-creates a CKAN dataset per object, with a resource per file, in the group ``type-benchmark-data``, so the files show up
-in the catalog without being offered as source datasets of new benchmarks.
-The objects never change, so an object that already exists in CKAN is skipped.
+Existing benchmark packages retain their data resources and administrative views.
+Definitions added to their FDO later are synchronized without recreating the package.
 """
 
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-from tools.ckan_tools import _ckan_raw_dataset_exists, create_raw_dataset
+from tools.ckan_tools import _ckan_raw_dataset_exists, create_raw_dataset, sync_benchmark_definition
 from tools.lakefs_tools import get_raw_dataset_metadata, list_raw_datasets
 
 GROUP = "type-benchmark-data"
@@ -31,8 +26,15 @@ def benchmark_extras(profile: dict) -> list:
 
 
 def _do_sync_benchmark_object(fdo_path: str, lakefs_benchmarks_repo: str, log=print) -> None:
+    """Register new benchmark objects and add missing definitions to existing ones.
+
+    Args:
+        fdo_path: lakeFS path of the benchmark FDO.
+        lakefs_benchmarks_repo: Repository containing frozen benchmark objects.
+        log: Progress logging callback.
+    """
     try:
-        metadata = get_raw_dataset_metadata(fdo_path, lakefs_benchmarks_repo)
+        metadata = get_raw_dataset_metadata(fdo_path, lakefs_benchmarks_repo, pin_components=True)
     except Exception as e:
         log(f"{fdo_path}: skipping ({e})")
         return
@@ -40,17 +42,23 @@ def _do_sync_benchmark_object(fdo_path: str, lakefs_benchmarks_repo: str, log=pr
     if not qid:
         log(f"{fdo_path}: no QID, skipping.")
         return
+    definition = ((metadata.get("profile", {}).get("episerveBenchmark") or {}).get("files") or {}).get("definition") or {}
+    components = [dict(item) for item in metadata["components"]]
+    for item in components:
+        if item["filename"] == "benchmark-definition.json":
+            item["sha256"] = definition.get("sha256", "")
     if _ckan_raw_dataset_exists(qid):
-        log(f"{qid}: already in CKAN, skipping.")
+        changed = sync_benchmark_definition(qid, components)
+        log(f"{qid}: definition {'updated' if changed else 'already synchronized'}.")
         return
     log(f"{qid}: syncing...")
-    create_raw_dataset(
+    pkg = create_raw_dataset(
         qid             = qid,
         name            = metadata["name"],
         description     = metadata["description"],
         source_url      = metadata["source_url"],
         modified        = metadata["modified"],
-        components      = metadata["components"],
+        components      = [item for item in components if item["filename"] != "benchmark-definition.json"],
         fdo_bytes       = metadata["fdo_bytes"],
         additional_type = metadata.get("additional_type", ""),
         access          = metadata.get("access", "") or "open",
@@ -58,17 +66,28 @@ def _do_sync_benchmark_object(fdo_path: str, lakefs_benchmarks_repo: str, log=pr
         dataset_type    = DATASET_TYPE,
         extra_extras    = benchmark_extras(metadata.get("profile", {})),
     )
+    sync_benchmark_definition(qid, components, package=pkg)
     log(f"{qid}: done.")
 
 
 @task
 def sync_benchmark_object(fdo_path: str, lakefs_benchmarks_repo: str) -> None:
+    """Synchronize one benchmark object as a Prefect task.
+
+    Args:
+        fdo_path: lakeFS path of the benchmark FDO.
+        lakefs_benchmarks_repo: Repository containing benchmark objects.
+    """
     _do_sync_benchmark_object(fdo_path, lakefs_benchmarks_repo, log=get_run_logger().info)
 
 
 @flow
 def sync_ckan_with_lakefs_benchmarks(lakefs_benchmarks_repo: str = "benchmarks") -> None:
-    """Register every benchmark object of the lakeFS repository in CKAN (new ones only)."""
+    """Register benchmark objects and reconcile definition resources in CKAN.
+
+    Args:
+        lakefs_benchmarks_repo: Repository containing frozen benchmark objects.
+    """
     logger    = get_run_logger()
     fdo_paths = list_raw_datasets(lakefs_benchmarks_repo)
     logger.info(f"Found {len(fdo_paths)} benchmark objects in lakeFS")

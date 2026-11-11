@@ -375,13 +375,14 @@ def list_raw_datasets(lakefs_processed_repo: str) -> list:
     ]
 
 
-def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
+def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str, *, pin_components: bool = False) -> dict:
     """Read raw dataset FDO metadata.
 
     Args:
         fdo_path: Path to the raw dataset ``.fdo.json`` object in lakeFS.
         lakefs_processed_repo: lakeFS repository containing processed dataset
             FDO sidecars.
+        pin_components: Read one immutable repository snapshot and pin component URLs to it.
 
     Returns:
         dict: Flat metadata used to create or update the CKAN package,
@@ -390,7 +391,8 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
     client = _lakefs_client()
     repo   = lakefs.Repository(lakefs_processed_repo, client=client)
     branch = repo.branch(LAKEFS_BRANCH)
-    obj    = branch.object(fdo_path)
+    commit = branch.head.id if pin_components else None
+    obj    = (repo.ref(commit) if commit else branch).object(fdo_path)
     with obj.reader() as f:
         raw = f.read()
     fdo = json.loads(raw)
@@ -408,7 +410,7 @@ def get_raw_dataset_metadata(fdo_path: str, lakefs_processed_repo: str) -> dict:
         if comp_id:
             components.append({
                 "filename":   comp_id,
-                "url":        f"{doip_base}/doip/retrieve/{qid}/{comp_id}",
+                "url":        f"{doip_base}/doip/retrieve/{qid}/{comp_id}" + (f"?version={commit}" if commit else ""),
                 "media_type": media_type,
             })
 

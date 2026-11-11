@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from datetime import datetime
 from functools import lru_cache
 from urllib.parse import parse_qs, unquote, urlparse
@@ -698,3 +699,54 @@ def create_raw_dataset(
         _ckan_add_preview_view(resource)
 
     return pkg
+
+
+
+def sync_benchmark_definition(qid: str, components: list[dict], *, package: dict | None = None) -> bool:
+    """Add or reconcile a frozen benchmark definition without changing other resources.
+
+    Args:
+        qid: Benchmark object's persistent identifier.
+        components: FDO components with pinned URLs and optional SHA-256 checksums.
+        package: Newly created package, or None to read the existing catalog entry.
+
+    Returns:
+        Whether a definition resource was created or updated.
+
+    Raises:
+        RuntimeError: The benchmark package is unavailable or the resource cannot be saved.
+        ValueError: The descriptor does not have a pinned URL or a valid checksum.
+    """
+    definition = next((item for item in components if item["filename"] == "benchmark-definition.json"), None)
+    if definition is None:
+        return False
+    url, checksum = definition["url"], definition.get("sha256", "")
+    version = parse_qs(urlparse(url).query).get("version", [])
+    if len(version) != 1 or not re.fullmatch(r"[0-9a-f]{40,64}", version[0]) or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        raise ValueError("Benchmark definitions require an immutable URL and SHA-256 checksum.")
+    pkg = package if package is not None else _ckan_fetch_raw_dataset(qid)
+    if pkg is None:
+        raise RuntimeError(f"Benchmark {qid} does not exist in CKAN")
+    wanted = {
+        "name": "benchmark-definition.json", "url": url, "format": "JSON", "hash": checksum,
+        "description": "Benchmark definition — frozen specification, generated-file metadata, data-selection recipe, and recovery information.",
+    }
+    current = next((item for item in pkg.get("resources", [])
+                    if item.get("name") == wanted["name"]
+                    or urlparse(item.get("url", "")).path == urlparse(url).path), None)
+    if current is None:
+        resource = _ckan_api("resource_create", {"package_id": pkg["id"], **wanted})
+        _ckan_add_preview_view(resource)
+        return True
+    # Keep an existing immutable URL when its content hash matches; unrelated lakeFS commits
+    # must not rewrite the resource or invalidate its existing preview and admin views.
+    current_versions = parse_qs(urlparse(current.get("url", "")).query).get("version", [])
+    if (current.get("hash") == checksum
+            and urlparse(current.get("url", ""))._replace(query="", fragment="") == urlparse(url)._replace(query="", fragment="")
+            and len(current_versions) == 1 and re.fullmatch(r"[0-9a-f]{40,64}", current_versions[0])):
+        wanted["url"] = current["url"]
+    changes = {key: value for key, value in wanted.items() if current.get(key) != value}
+    if not changes:
+        return False
+    _ckan_api("resource_patch", {"id": current["id"], **changes})
+    return True

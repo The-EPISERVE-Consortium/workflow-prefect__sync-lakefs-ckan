@@ -125,3 +125,21 @@ python deploy.py
 ```
 
 This creates or updates the deployments `sync-ckan-with-lakefs-modelruns`, `sync-ckan-with-lakefs-dataprocessed`, `sync-ckan-with-lakefs-benchmarks` and `sync-ckan-with-lakefs-models` on the `kubernetes-pool` work pool. The image `ghcr.io/the-episerve-consortium/sync-ckan-with-lakefs:latest` must already exist (CI builds and pushes it).
+
+### Raw Markdown previews
+
+New `MD` and `MARKDOWN` resources receive the same raw-text preview as logs.
+Markdown headings, lists, code fences and embedded HTML are displayed as source
+text. The theme preserves the resource page's recorded version and signed DOIP
+URL in these previews.
+
+After deploying the sync and theme changes, backfill existing resources using
+the normal `CKAN_HOST` and `CKAN_API_TOKEN` environment:
+
+```bash
+python -m maintenance.backfill_markdown_previews
+python -m maintenance.backfill_markdown_previews --apply
+```
+
+The first command reports candidates. The second creates only missing text
+views; running it again leaves existing views and stored files unchanged.

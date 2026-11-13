@@ -42,6 +42,11 @@ def _parse_json(r: requests.Response, context: str) -> dict:
 
 
 def _ckan_add_preview_view(resource: dict) -> None:
+    """Register the standard preview for a newly created resource.
+
+    Args:
+        resource: Created CKAN resource with its identifier and file format.
+    """
     fmt = resource.get("format", "").upper()
     if fmt == "PARQUET":
         _ckan_api("resource_view_create", {
@@ -49,12 +54,47 @@ def _ckan_add_preview_view(resource: dict) -> None:
             "view_type":   "parquet_view",
             "title":       "Preview",
         })
-    elif fmt in {"JSON", "LOG"}:
+    elif fmt in {"JSON", "LOG", "MD", "MARKDOWN"}:
         _ckan_api("resource_view_create", {
             "resource_id": resource["id"],
             "view_type":   "text_view",
             "title":       "Preview",
         })
+
+
+def backfill_markdown_previews(apply: bool = False) -> list[dict]:
+    """Find existing Markdown resources missing a raw-text view and optionally add it.
+
+    Args:
+        apply: Create missing views when True; otherwise only report candidates.
+
+    Returns:
+        Resources needing a text view, containing only their ID and name. Existing
+        text views are retained, so applying the backfill again makes no changes.
+    """
+    pending, seen = [], set()
+    for fmt in ('MD', 'MARKDOWN'):
+        offset = 0
+        while True:
+            result = _ckan_api('resource_search', {'query': f'format:{fmt}', 'limit': 100, 'offset': offset})
+            resources = result.get('results') or []
+            for resource in resources:
+                resource_id = resource['id']
+                if resource_id in seen:
+                    continue
+                seen.add(resource_id)
+                if resource.get('format', '').upper() not in {'MD', 'MARKDOWN'}:
+                    continue
+                views = _ckan_api('resource_view_list', {'id': resource_id})
+                if any(view.get('view_type') == 'text_view' for view in views):
+                    continue
+                pending.append({'id': resource_id, 'name': resource.get('name', '')})
+                if apply:
+                    _ckan_add_preview_view(resource)
+            offset += len(resources)
+            if not resources or offset >= result.get('count', 0):
+                break
+    return pending
 
 
 def _ckan_api(action: str, payload: dict) -> dict:

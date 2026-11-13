@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY flow/ ./flow/
 COPY tools/ ./tools/
-COPY maintenance/backfill_markdown_previews.py ./maintenance/
+COPY maintenance/backfill_markdown_previews.py maintenance/backfill_text_previews.py ./maintenance/

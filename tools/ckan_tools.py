@@ -41,6 +41,9 @@ def _parse_json(r: requests.Response, context: str) -> dict:
         )
 
 
+RAW_TEXT_FORMATS = ('MD', 'MARKDOWN', 'TXT', 'XML', 'CONF', 'YAML', 'YML')
+
+
 def _ckan_add_preview_view(resource: dict) -> None:
     """Register the standard preview for a newly created resource.
 
@@ -54,7 +57,7 @@ def _ckan_add_preview_view(resource: dict) -> None:
             "view_type":   "parquet_view",
             "title":       "Preview",
         })
-    elif fmt in {"JSON", "LOG", "MD", "MARKDOWN"}:
+    elif fmt in {"JSON", "LOG", *RAW_TEXT_FORMATS}:
         _ckan_api("resource_view_create", {
             "resource_id": resource["id"],
             "view_type":   "text_view",
@@ -62,18 +65,19 @@ def _ckan_add_preview_view(resource: dict) -> None:
         })
 
 
-def backfill_markdown_previews(apply: bool = False) -> list[dict]:
-    """Find existing Markdown resources missing a raw-text view and optionally add it.
+def backfill_text_previews(apply: bool = False, formats: tuple[str, ...] = RAW_TEXT_FORMATS) -> list[dict]:
+    """Find supported resources missing a raw-text view and optionally add it.
 
     Args:
         apply: Create missing views when True; otherwise only report candidates.
+        formats: Resource format labels to inspect.
 
     Returns:
         Resources needing a text view, containing only their ID and name. Existing
         text views are retained, so applying the backfill again makes no changes.
     """
     pending, seen = [], set()
-    for fmt in ('MD', 'MARKDOWN'):
+    for fmt in formats:
         offset = 0
         while True:
             result = _ckan_api('resource_search', {'query': f'format:{fmt}', 'limit': 100, 'offset': offset})
@@ -83,7 +87,7 @@ def backfill_markdown_previews(apply: bool = False) -> list[dict]:
                 if resource_id in seen:
                     continue
                 seen.add(resource_id)
-                if resource.get('format', '').upper() not in {'MD', 'MARKDOWN'}:
+                if resource.get('format', '').upper() not in formats:
                     continue
                 views = _ckan_api('resource_view_list', {'id': resource_id})
                 if any(view.get('view_type') == 'text_view' for view in views):
@@ -95,6 +99,18 @@ def backfill_markdown_previews(apply: bool = False) -> list[dict]:
             if not resources or offset >= result.get('count', 0):
                 break
     return pending
+
+
+def backfill_markdown_previews(apply: bool = False) -> list[dict]:
+    """Retain the original Markdown-only backfill entry point.
+
+    Args:
+        apply: Create missing views when True; otherwise only report candidates.
+
+    Returns:
+        Markdown resources missing text views.
+    """
+    return backfill_text_previews(apply=apply, formats=('MD', 'MARKDOWN'))
 
 
 def _ckan_api(action: str, payload: dict) -> dict:

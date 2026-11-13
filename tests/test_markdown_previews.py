@@ -4,10 +4,10 @@ from unittest.mock import patch
 
 import pytest
 
-from tools.ckan_tools import _ckan_add_preview_view, backfill_markdown_previews
+from tools.ckan_tools import RAW_TEXT_FORMATS, _ckan_add_preview_view, backfill_markdown_previews, backfill_text_previews
 
 
-@pytest.mark.parametrize('format', ['MD', 'md', 'MARKDOWN', 'markdown'])
+@pytest.mark.parametrize('format', ['MD', 'md', 'MARKDOWN', 'markdown', 'TXT', 'txt', 'XML', 'xml', 'CONF', 'conf', 'YAML', 'yaml', 'YML', 'yml'])
 def test_markdown_uses_existing_text_view(format):
     """Register plain-text views for the supported Markdown format aliases.
 
@@ -54,3 +54,36 @@ def test_backfill_dry_run_and_repeat_do_not_duplicate_views():
         assert backfill_markdown_previews(apply=True) == [{'id': 'notes', 'name': 'notes.md'}]
         assert backfill_markdown_previews(apply=True) == []
     assert created == [{'resource_id': 'notes', 'view_type': 'text_view', 'title': 'Preview'}]
+
+
+
+def test_backfill_covers_every_raw_text_format_without_recreating_existing_views():
+    """Inspect all supported formats and create only the missing view for each."""
+    created = set()
+
+    def api(action, payload):
+        """Simulate resources and persisted views for each supported format.
+
+        Args:
+            action: CKAN API action.
+            payload: Action arguments.
+
+        Returns:
+            Matching fake resource, view, or creation result.
+        """
+        if action == 'resource_search':
+            fmt = payload['query'].split(':')[1]
+            return {'count': 1, 'results': [{'id': fmt, 'format': fmt, 'name': 'file.' + fmt.lower()}]}
+        if action == 'resource_view_list':
+            return [{'view_type': 'text_view'}] if payload['id'] in created else []
+        assert action == 'resource_view_create'
+        assert payload['view_type'] == 'text_view'
+        created.add(payload['resource_id'])
+        return {}
+
+    with patch('tools.ckan_tools._ckan_api', side_effect=api):
+        assert len(backfill_text_previews()) == len(RAW_TEXT_FORMATS)
+        assert not created
+        assert len(backfill_text_previews(apply=True)) == len(RAW_TEXT_FORMATS)
+        assert backfill_text_previews(apply=True) == []
+    assert created == set(RAW_TEXT_FORMATS)

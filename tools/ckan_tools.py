@@ -397,6 +397,40 @@ def model_card_extras(card: dict | None) -> dict:
     return extras
 
 
+def _create_model_once(payload: dict) -> tuple[dict, bool]:
+    """Create a model package, accepting a verified concurrent creation.
+
+    Args:
+        payload: CKAN model package fields, including its stable QID name.
+
+    Returns:
+        Package and whether this call created it. A concurrent winner owns
+        uploading the model resources, preventing duplicate FDO uploads.
+
+    Raises:
+        RuntimeError: Creation failed and the expected active package cannot
+            be found. Lookup failures preserve the original creation error.
+    """
+    try:
+        return _ckan_api("package_create", payload), True
+    except RuntimeError as create_error:
+        # CKAN can return HTTP 500 for a database uniqueness violation when
+        # two runs first register the same model. Do not assume every 500 is
+        # that race: verify the exact active package before accepting it.
+        try:
+            response = requests.get(
+                f"{_ckan_url()}/api/3/action/package_show?id={payload['name']}"
+            )
+            body = _parse_json(response, "package_show after model creation failure")
+        except Exception:
+            raise create_error
+        package = body.get("result") or {}
+        if (body.get("success") and package.get("name") == payload["name"]
+                and package.get("state") == "active"):
+            return package, False
+        raise
+
+
 def create_model(
     name: str,
     description: str,
@@ -468,7 +502,7 @@ def create_model(
         _ckan_api("package_delete", {"id": slug})
 
     vocabs = _vocabs()
-    pkg = _ckan_api("package_create", {
+    pkg, created_here = _create_model_once({
         "name":      slug,
         "title":     name,
         "notes":     _model_notes(name, description, model_qid),
@@ -494,6 +528,8 @@ def create_model(
             *[{"key": k, "value": v} for k, v in card_extras.items()],
         ],
     })
+    if not created_here:
+        return pkg
     if fdo_bytes and model_qid:
         _ckan_upload_resource(pkg["id"], f"{model_qid}.fdo.json", fdo_bytes, "FDO metadata")
     return pkg

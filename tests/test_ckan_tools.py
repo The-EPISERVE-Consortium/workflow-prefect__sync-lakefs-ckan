@@ -232,3 +232,57 @@ def test_existing_model_image_created_is_updated(monkeypatch):
     (action, data), = calls
     assert action == "package_patch"
     assert {"key": "docker_image_created", "value": "2026-10-30T00:45:26Z"} in data["extras"]
+
+
+def test_concurrent_model_creation_reuses_the_winner_without_duplicate_resources():
+    """A CKAN duplicate-name failure is recoverable after another task wins."""
+    winner = {'id': 'model-id', 'name': 'q1', 'state': 'active'}
+    with (
+        patch('tools.ckan_tools.requests.get') as get,
+        patch('tools.ckan_tools._ckan_api', side_effect=RuntimeError('Internal Server Error')) as api,
+        patch('tools.ckan_tools._vocabs', return_value={}),
+        patch('tools.ckan_tools._ckan_upload_resource') as upload,
+    ):
+        get.return_value.json.side_effect = [
+            {'success': False}, {'success': True, 'result': winner},
+        ]
+        result = ckan_tools.create_model(
+            name='model', description='description', git_repo='', docker_image='ghcr.io/example/model',
+            docker_tag='latest', algorithm='', input_format='', output_format='',
+            lead_researcher='', model_qid='Q1', fdo_bytes=b'{}',
+        )
+    assert result == winner
+    assert api.call_count == 1
+    assert get.call_count == 2
+    upload.assert_not_called()
+
+
+@pytest.mark.parametrize('lookup', [
+    {'success': False},
+    {'success': True, 'result': {'name': 'q1', 'state': 'deleted'}},
+    {'success': True, 'result': {'name': 'q2', 'state': 'active'}},
+])
+def test_model_creation_failure_is_preserved_without_the_expected_active_package(lookup):
+    """A failed create is not hidden by a missing, deleted or unrelated package.
+
+    Args:
+        lookup: Result of checking for the concurrent package.
+    """
+    error = RuntimeError('Original CKAN creation error')
+    with patch('tools.ckan_tools._ckan_api', side_effect=error), patch('tools.ckan_tools.requests.get') as get:
+        get.return_value.json.return_value = lookup
+        with pytest.raises(RuntimeError) as raised:
+            ckan_tools._create_model_once({'name': 'q1'})
+    assert raised.value is error
+
+
+def test_model_creation_lookup_failure_preserves_the_original_error():
+    """A failed verification cannot turn a creation failure into success."""
+    error = RuntimeError('Original CKAN creation error')
+    with (
+        patch('tools.ckan_tools._ckan_api', side_effect=error),
+        patch('tools.ckan_tools.requests.get', side_effect=RuntimeError('Lookup failed')),
+    ):
+        with pytest.raises(RuntimeError) as raised:
+            ckan_tools._create_model_once({'name': 'q1'})
+    assert raised.value is error
